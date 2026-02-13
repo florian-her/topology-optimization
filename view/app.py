@@ -25,6 +25,26 @@ def main():
         st.session_state.optimized = False
         st.success(f"Raster mit {width}x{height} Nodes erstellt.")
 
+    st.sidebar.subheader("Randbedingungen")
+
+    if st.session_state.structure:
+        # Button für Standard-Lagerung (Linke Seite fest)
+        if st.sidebar.button("Linke Seite fixieren"):
+            for node in st.session_state.structure.nodes:
+                if node.x == 0:
+                    node.fix_x = 1
+                    node.fix_y = 1
+            st.sidebar.success("Lager links gesetzt!")
+
+        # Button für eine Last (Rechte Seite, Mitte)
+        if st.sidebar.button("Last rechts mittig setzen"):
+            max_x = st.session_state.structure.width - 1
+            mid_y = st.session_state.structure.height // 2
+            for node in st.session_state.structure.nodes:
+                if node.x == max_x and node.y == mid_y:
+                    node.force_y = -10.0 # Kraft nach unten
+            st.sidebar.success("Last gesetzt!")
+
     # 4. Hauptbereich: Darstellung & Steuerung
     col1, col2 = st.columns([3, 1])
 
@@ -41,10 +61,15 @@ def main():
         st.subheader("Aktionen")
         if st.session_state.structure:
             if st.button("FEM Analyse starten"):
-                with st.spinner("Berechne Verschiebungen..."):
-                    # erstmal mit Dummy-Daten
-                    st.write("Analyse abgeschlossen (Dummy)")
-            
+                from solver.fem_solver import FEMSolver
+                solver = FEMSolver(st.session_state.structure)
+                try:
+                    solver.solve()
+                    st.session_state.optimized = True # Trigger für Re-Drawing
+                    st.success("Berechnung fertig!")
+                except Exception as e:
+                    st.error(str(e))
+                
             if st.button("Optimierungsschritt"):
                 # Hier später optimizer/topology_optimizer.py aufrufen
                 st.write("Elemente entfernt (Dummy)")
