@@ -27,21 +27,22 @@ class Structure:
         
         # 2. Federn erstellen
         spring_id = 0
+        
         for y in range(self.height):
             for x in range(self.width):
-                # Horizontale Feder (nach rechts)
-                if x < self.width - 1:
-                    self.springs.append(Spring(spring_id, node_map[(x, y)], node_map[(x+1, y)]))
-                    spring_id += 1
-                # Vertikale Feder (nach unten)
-                if y < self.height - 1:
-                    self.springs.append(Spring(spring_id, node_map[(x, y)], node_map[(x, y+1)]))
-                    spring_id += 1
-                # Diagonale 1 (rechts-unten)
-                if x < self.width - 1 and y < self.height - 1:
-                    self.springs.append(Spring(spring_id, node_map[(x, y)], node_map[(x+1, y+1)]))
-                    spring_id += 1
-                # Diagonale 2 (links-unten)
-                if x > 0 and y < self.height - 1:
-                    self.springs.append(Spring(spring_id, node_map[(x, y)], node_map[(x-1, y+1)]))
-                    spring_id += 1
+                current = node_map[(x, y)]
+                
+                # Vorgaben: k=1 für gerade, k=0.707 für schräge
+                targets = [
+                    (1, 0, 1.0),                 # Rechts (k=1)
+                    (0, 1, 1.0),                 # Unten (k=1)
+                    (1, 1, 1.0 / np.sqrt(2)),    # Diagonal Rechts-Unten
+                    (-1, 1, 1.0 / np.sqrt(2))    # Diagonal Links-Unten
+                ]
+                
+                for dx, dy, k_val in targets:
+                    nx, ny = x + dx, y + dy
+                    if (nx, ny) in node_map:
+                        neighbor = node_map[(nx, ny)]
+                        self.springs.append(Spring(spring_id, current, neighbor, k=k_val))
+                        spring_id += 1

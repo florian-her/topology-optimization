@@ -25,8 +25,12 @@ def main():
         st.session_state.optimized = False
         st.success(f"Raster mit {width}x{height} Nodes erstellt.")
 
+    
+    st.sidebar.header("Anzeige-Optionen")
+    # Ein Slider von 1 bis 10 mit standart 1.0
+    scaling = st.sidebar.slider("Verformungs-Skalierung", 0.0, 10.0, 1.0, 0.1)
+            
     st.sidebar.subheader("Randbedingungen")
-
     if st.session_state.structure:
         # Button für Standard-Lagerung (Linke Seite fest)
         if st.sidebar.button("Linke Seite fixieren"):
@@ -42,7 +46,7 @@ def main():
             mid_y = st.session_state.structure.height // 2
             for node in st.session_state.structure.nodes:
                 if node.x == max_x and node.y == mid_y:
-                    node.force_y = -10.0 # Kraft nach unten
+                    node.force_y = -0.2 # Kraft nach unten
             st.sidebar.success("Last gesetzt!")
 
     # 4. Hauptbereich: Darstellung & Steuerung
@@ -51,8 +55,8 @@ def main():
     with col1:
         st.subheader("Visualisierung")
         if st.session_state.structure:
-            # Nutzt deine visualization.py
-            fig = plot_structure(st.session_state.structure)
+            # Hier Slider-Wert an die Funktion weiter geben
+            fig = plot_structure(st.session_state.structure, scale_factor=scaling)
             st.pyplot(fig)
         else:
             st.info("Bitte initialisiere zuerst eine Struktur in der Sidebar.")
