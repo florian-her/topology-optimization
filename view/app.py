@@ -7,77 +7,98 @@ st.set_page_config(page_title="TopoOptimizer 2D", layout="wide")
 
 def main():
     st.title("2D Topologie-Optimierung")
-    st.write("Optimierung von Stabwerkstrukturen mittels FEM.")
 
-    # 2. Session State Initialisierung für Streamlit
+    # 1. Init
     if 'structure' not in st.session_state:
         st.session_state.structure = None
     if 'optimized' not in st.session_state:
         st.session_state.optimized = False
 
-    # 3. Sidebar für Eingabeparameter
-    st.sidebar.header("Parameter")
-    width = st.sidebar.slider("Breite (Nodes)", 5, 50, 20)
-    height = st.sidebar.slider("Höhe (Nodes)", 5, 20, 10)
+    # 2. Sidebar: Nur noch Grid-Einstellungen
+    st.sidebar.header("Gitter-Parameter")
+    width = st.sidebar.slider("Breite", 5, 50, 20)
+    height = st.sidebar.slider("Höhe", 5, 20, 10)
     
     if st.sidebar.button("Struktur initialisieren"):
         st.session_state.structure = Structure(width, height)
         st.session_state.optimized = False
-        st.success(f"Raster mit {width}x{height} Nodes erstellt.")
+        st.rerun()
 
-    
-    st.sidebar.header("Anzeige-Optionen")
-    # Ein Slider von 1 bis 10 mit standart 1.0
+    st.sidebar.markdown("---")
     scaling = st.sidebar.slider("Verformungs-Skalierung", 0.0, 10.0, 1.0, 0.1)
+
+    # 3. Hauptbereich
+    col_vis, col_tools = st.columns([3, 1])
+
+    structure = st.session_state.structure
+
+    with col_vis:
+        st.subheader("Visualisierung & Auswahl")
+        
+        selected_node = None
+        
+        if structure:
+            # Spalten, damit X und Y nebeneinander liegen
+            sel_c1, sel_c2 = st.columns(2)
             
-    st.sidebar.subheader("Randbedingungen")
-    if st.session_state.structure:
-        # Button für Standard-Lagerung (Linke Seite fest)
-        if st.sidebar.button("Linke Seite fixieren"):
-            for node in st.session_state.structure.nodes:
-                if node.x == 0:
-                    node.fix_x = 1
-                    node.fix_y = 1
-            st.sidebar.success("Lager links gesetzt!")
+            # 1. Waagerechter Regler (X)
+            sel_x = sel_c1.slider("X-Koordinate wählen", 0, structure.width - 1, 0)
+            
+            # 2. Senkrechter Regler (Y) - hier als normaler Slider
+            sel_y = sel_c2.slider("Y-Koordinate wählen", 0, structure.height - 1, 0)
 
-        # Button für eine Last (Rechte Seite, Mitte)
-        if st.sidebar.button("Last rechts mittig setzen"):
-            max_x = st.session_state.structure.width - 1
-            mid_y = st.session_state.structure.height // 2
-            for node in st.session_state.structure.nodes:
-                if node.x == max_x and node.y == mid_y:
-                    node.force_y = -0.2 # Kraft nach unten
-            st.sidebar.success("Last gesetzt!")
-
-    # 4. Hauptbereich: Darstellung & Steuerung
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        st.subheader("Visualisierung")
-        if st.session_state.structure:
-            # Hier Slider-Wert an die Funktion weiter geben
-            fig = plot_structure(st.session_state.structure, scale_factor=scaling)
+            # Den passenden Knoten im Speicher finden
+            for n in structure.nodes:
+                if n.x == sel_x and n.y == sel_y:
+                    selected_node = n
+                    break
+            
+            # Plotten mit Highlight
+            fig = plot_structure(structure, scale_factor=scaling, highlight_node=selected_node)
             st.pyplot(fig)
+        
         else:
-            st.info("Bitte initialisiere zuerst eine Struktur in der Sidebar.")
+            st.info("Bitte initialisiere eine Struktur.")
 
-    with col2:
-        st.subheader("Aktionen")
-        if st.session_state.structure:
+    # 4. Bearbeitungs-Menü (Rechts)
+    with col_tools:
+        st.subheader("Bearbeitung")
+        
+        if structure and selected_node:
+            st.markdown(f"**Gewählt: Knoten {selected_node.id}**")
+            st.markdown(f"Position: ({selected_node.x}, {selected_node.y})")
+            
+            # Formular für den markierten Knoten
+            with st.form("node_editor"):
+                st.write("Randbedingungen")
+                c1, c2 = st.columns(2)
+                fix_x = c1.checkbox("Fix X", value=bool(selected_node.fix_x))
+                fix_y = c2.checkbox("Fix Y", value=bool(selected_node.fix_y))
+                
+                st.write("Kräfte [N]")
+                force_x = st.number_input("Fx", value=float(selected_node.force_x), step=0.1)
+                force_y = st.number_input("Fy", value=float(selected_node.force_y), step=0.1)
+                
+                if st.form_submit_button("Anwenden"):
+                    selected_node.fix_x = 1 if fix_x else 0
+                    selected_node.fix_y = 1 if fix_y else 0
+                    selected_node.force_x = force_x
+                    selected_node.force_y = -force_y
+                    st.success("Gespeichert!")
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            # FEM Button
             if st.button("FEM Analyse starten"):
                 from solver.fem_solver import FEMSolver
-                solver = FEMSolver(st.session_state.structure)
+                solver = FEMSolver(structure)
                 try:
                     solver.solve()
-                    st.session_state.optimized = True # Trigger für Re-Drawing
-                    st.success("Berechnung fertig!")
+                    st.success("Fertig!")
+                    st.rerun()
                 except Exception as e:
-                    st.error(str(e))
-                
-            if st.button("Optimierungsschritt"):
-                # Hier später optimizer/topology_optimizer.py aufrufen
-                st.write("Elemente entfernt (Dummy)")
+                    st.error(f"Fehler: {e}")
 
-# Start der App
 if __name__ == "__main__":
     main()
