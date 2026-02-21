@@ -149,7 +149,15 @@ def solve_structure(structure: Structure) -> npt.NDArray[np.float64] | None:
 
     assert len(fixed_dofs) > 0, "Keine Lager definiert — Struktur ist nicht gelagert."
 
-    return solve(K_g, F, fixed_dofs)
+    u = solve(K_g, F, fixed_dofs)
+
+    # Verschiebungen in Knoten zurückschreiben (für Verformungsplot)
+    if u is not None:
+        for node in structure.nodes:
+            node.u_x = float(u[2 * node.id])
+            node.u_y = float(u[2 * node.id + 1])
+
+    return u
 
 
 if __name__ == "__main__":

@@ -15,6 +15,10 @@ class Node:
         self.force_x = 0.0
         self.force_y = 0.0
 
+        # Ergebnisse der FEM-Analyse (Verschiebungen)
+        self.u_x = 0.0
+        self.u_y = 0.0
+
     @property
     def pos(self):
         return np.array([self.x, self.y])

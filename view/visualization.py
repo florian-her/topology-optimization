@@ -8,6 +8,8 @@ from model.structure import Structure
 def plot_structure(
     structure: Structure,
     energies: dict[int, float] | None = None,
+    scale_factor: float = 0.0,
+    highlight_node=None,
 ) -> plt.Figure:
     """Zeichnet Knoten und Federn der Struktur.
 
@@ -18,6 +20,10 @@ def plot_structure(
     energies : dict[int, float] | None, optional
         Mapping spring_id → Verformungsenergie. Wenn angegeben,
         werden Federn nach Energie eingefärbt (blau=niedrig, rot=hoch).
+    scale_factor : float, optional
+        Skalierungsfaktor für Verformungsdarstellung (0 = unverformt).
+    highlight_node : Node | None, optional
+        Knoten der hervorgehoben werden soll (magenta).
 
     Returns
     -------
@@ -36,10 +42,16 @@ def plot_structure(
         norm = mcolors.Normalize(vmin=e_min, vmax=e_max if e_max > e_min else e_min + 1e-9)
         cmap = plt.cm.RdYlBu_r  # blau=niedrig, rot=hoch
 
-    # 1. Federn zeichnen
+    def _px(node) -> float:
+        return node.x + node.u_x * scale_factor
+
+    def _py(node) -> float:
+        return node.y + node.u_y * scale_factor
+
+    # 1. Federn zeichnen (verformt wenn scale_factor > 0)
     for spring in structure.springs:
-        xa = [spring.node_a.x, spring.node_b.x]
-        ya = [spring.node_a.y, spring.node_b.y]
+        xa = [_px(spring.node_a), _px(spring.node_b)]
+        ya = [_py(spring.node_a), _py(spring.node_b)]
 
         if not spring.active:
             # Inaktive Federn sehr blass anzeigen
@@ -52,20 +64,27 @@ def plot_structure(
 
     # 2. Knoten zeichnen
     for node in structure.nodes:
+        px, py = _px(node), _py(node)
         if node.fix_x or node.fix_y:
             # Gelagerte Knoten als Dreieck
-            ax.plot(node.x, node.y, marker='^', color='black', markersize=7, zorder=4)
+            ax.plot(px, py, marker='^', color='black', markersize=7, zorder=4)
         elif node.force_x != 0 or node.force_y != 0:
             # Belastete Knoten als Stern
-            ax.plot(node.x, node.y, marker='*', color='red', markersize=10, zorder=4)
+            ax.plot(px, py, marker='*', color='red', markersize=10, zorder=4)
             # Kraftpfeil
             fx, fy = node.force_x, node.force_y
-            scale = 0.4 / (max(abs(fx), abs(fy)) + 1e-9)
-            ax.annotate("", xy=(node.x + fx * scale, node.y + fy * scale),
-                        xytext=(node.x, node.y),
+            s = 0.4 / (max(abs(fx), abs(fy)) + 1e-9)
+            ax.annotate("", xy=(px + fx * s, py + fy * s),
+                        xytext=(px, py),
                         arrowprops=dict(arrowstyle="->", color="red", lw=2))
         else:
-            ax.plot(node.x, node.y, 'o', color='#555555', markersize=3, zorder=3)
+            ax.plot(px, py, 'o', color='#555555', markersize=3, zorder=3)
+
+    # 3. Ausgewählten Knoten hervorheben
+    if highlight_node is not None:
+        ax.plot(_px(highlight_node), _py(highlight_node),
+                'o', color='magenta', markersize=12,
+                markeredgecolor='black', zorder=5)
 
     # 3. Colorbar wenn Energien vorhanden
     if energies:
