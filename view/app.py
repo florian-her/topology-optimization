@@ -10,6 +10,7 @@ from model.structure import Structure
 from solver.fem_solver import solve_structure
 from optimizer.topology_optimizer import TopologyOptimizer
 from view.visualization import plot_structure
+from persistence.io_handler import IOHandler
 
 st.set_page_config(page_title="TopoOptimizer 2D", layout="wide")
 
@@ -56,6 +57,8 @@ def main():
         st.session_state.status_msg = None
     if "structure_base" not in st.session_state:
         st.session_state.structure_base = None
+    if "last_uploaded" not in st.session_state:
+        st.session_state.last_uploaded = None
 
     # --- Sidebar ---
     st.sidebar.header("Gitter")
@@ -77,6 +80,24 @@ def main():
             st.session_state.structure_base = deepcopy(st.session_state.structure)
             st.session_state.u = None
             st.session_state.energies = None
+
+    st.sidebar.markdown("---")
+    st.sidebar.header("Speichern / Laden")
+
+    uploaded = st.sidebar.file_uploader("Struktur laden (.json)", type=["json"])
+    if uploaded is not None and uploaded.name != st.session_state.last_uploaded:
+        try:
+            s_loaded = IOHandler.load_from_bytes(uploaded.read())
+            st.session_state.structure = s_loaded
+            st.session_state.structure_base = deepcopy(s_loaded)
+            st.session_state.u = None
+            st.session_state.energies = None
+            st.session_state.energy_history = []
+            st.session_state.last_uploaded = uploaded.name
+            st.session_state.status_msg = f"Struktur geladen: {uploaded.name}"
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Ladefehler: {e}")
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
@@ -112,6 +133,22 @@ def main():
             highlight_node=selected_node,
         )
         st.pyplot(fig)
+
+        dl1, dl2 = st.columns(2)
+        dl1.download_button(
+            "Struktur (JSON)",
+            IOHandler.to_json_bytes(s),
+            file_name="struktur.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+        dl2.download_button(
+            "Bild (PNG)",
+            IOHandler.to_png_bytes(fig),
+            file_name="struktur.png",
+            mime="image/png",
+            use_container_width=True,
+        )
 
     with col_ctrl:
         # --- Knoten-Editor ---
