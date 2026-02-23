@@ -13,6 +13,16 @@ from view.visualization import plot_structure
 st.set_page_config(page_title="TopoOptimizer 2D", layout="wide")
 
 
+def _has_forces(structure: Structure) -> bool:
+    """Prüft ob mindestens eine Kraft definiert ist."""
+    return any(n.force_x != 0 or n.force_y != 0 for n in structure.nodes)
+
+
+def _has_bcs(structure: Structure) -> bool:
+    """Prüft ob mindestens eine Lagerung definiert ist."""
+    return any(n.fix_x or n.fix_y for n in structure.nodes)
+
+
 def _apply_default_bcs(structure: Structure) -> None:
     """Standard-Randbedingungen: linke Spalte fixiert, Kraft rechts-Mitte."""
     for y in range(structure.height):
@@ -45,6 +55,7 @@ def main():
 
     if st.sidebar.button("Struktur initialisieren"):
         s = Structure(width, height)
+        _apply_default_bcs(s)
         st.session_state.structure = s
         st.session_state.u = None
         st.session_state.energies = None
@@ -120,46 +131,73 @@ def main():
 
         if st.button("FEM lösen"):
             try:
-                with st.spinner("Löse Ku=F …"):
-                    u = solve_structure(s)
-                if u is None:
-                    st.error("FEM konnte nicht gelöst werden.")
+                if not _has_bcs(s):
+                    st.warning("Keine Lagerung definiert — bitte zuerst Lager setzen.")
+                elif not _has_forces(s):
+                    st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
                 else:
-                    st.session_state.u = u
-                    st.session_state.energies = TopologyOptimizer.compute_spring_energies(s, u)
-                    total_e = sum(st.session_state.energies.values())
-                    st.success(f"Energie: {total_e:.4f}")
-            except AssertionError as e:
-                st.error(str(e))
+                    with st.spinner("Löse Ku=F …"):
+                        u = solve_structure(s)
+                    if u is None:
+                        st.error("FEM konnte nicht gelöst werden.")
+                    else:
+                        st.session_state.u = u
+                        st.session_state.energies = TopologyOptimizer.compute_spring_energies(s, u)
+                        total_e = sum(st.session_state.energies.values())
+                        st.success(f"Energie: {total_e:.4f}")
+            except Exception as e:
+                st.error(f"FEM-Fehler: {e}")
 
         if st.button("1 Schritt"):
-            if st.session_state.u is None:
-                st.warning("Zuerst FEM lösen.")
-            else:
-                removed = TopologyOptimizer.optimization_step(s, st.session_state.u)
-                if removed is None:
-                    st.warning("Keine Feder mehr entfernbar.")
+            try:
+                if not _has_forces(s):
+                    st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
                 else:
-                    u = solve_structure(s)
-                    st.session_state.u = u
-                    st.session_state.energies = (
-                        TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
-                    )
-                    total_e = sum(st.session_state.energies.values()) if st.session_state.energies else 0
-                    st.session_state.energy_history.append(total_e)
-                    st.success(f"Feder {removed} entfernt")
+                    # Auto-solve FEM falls noch nicht gelöst
+                    if st.session_state.u is None:
+                        st.session_state.u = solve_structure(s)
+                        if st.session_state.u is not None:
+                            st.session_state.energies = TopologyOptimizer.compute_spring_energies(
+                                s, st.session_state.u
+                            )
+
+                    if st.session_state.u is None:
+                        st.error("FEM konnte nicht gelöst werden.")
+                    else:
+                        removed = TopologyOptimizer.optimization_step(s, st.session_state.u)
+                        if removed is None:
+                            st.warning("Keine Feder mehr entfernbar.")
+                        else:
+                            u = solve_structure(s)
+                            st.session_state.u = u
+                            st.session_state.energies = (
+                                TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
+                            )
+                            total_e = sum(st.session_state.energies.values()) if st.session_state.energies else 0
+                            st.session_state.energy_history.append(total_e)
+                            st.success(f"Feder {removed} entfernt")
+            except Exception as e:
+                st.error(f"Optimierer-Fehler: {e}")
 
         if st.button(f"{int(n_steps)} Schritte"):
-            with st.spinner(f"Optimiere {int(n_steps)} Schritte …"):
-                history = TopologyOptimizer.run(s, n_steps=int(n_steps))
-                st.session_state.energy_history.extend(history)
-                u = solve_structure(s)
-                st.session_state.u = u
-                st.session_state.energies = (
-                    TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
-                )
-            active = sum(1 for sp in s.springs if sp.active)
-            st.success(f"{len(history)} Schritte · {active} Federn aktiv")
+            try:
+                if not _has_forces(s):
+                    st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
+                elif not _has_bcs(s):
+                    st.warning("Keine Lagerung definiert — bitte zuerst Lager setzen.")
+                else:
+                    with st.spinner(f"Optimiere {int(n_steps)} Schritte …"):
+                        history = TopologyOptimizer.run(s, n_steps=int(n_steps))
+                        st.session_state.energy_history.extend(history)
+                        u = solve_structure(s)
+                        st.session_state.u = u
+                        st.session_state.energies = (
+                            TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
+                        )
+                    active = sum(1 for sp in s.springs if sp.active)
+                    st.success(f"{len(history)} Schritte · {active} Federn aktiv")
+            except Exception as e:
+                st.error(f"Optimierer-Fehler: {e}")
 
         if st.button("Reset"):
             s2 = Structure(s.width, s.height)
