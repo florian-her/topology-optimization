@@ -202,38 +202,8 @@ def main():
             except Exception as e:
                 st.error(f"FEM-Fehler: {e}")
 
-        if st.button("1 Schritt"):
-            try:
-                if not _has_forces(s):
-                    st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
-                else:
-                    if st.session_state.u is None:
-                        st.session_state.u = solve_structure(s)
-                        if st.session_state.u is not None:
-                            st.session_state.energies = TopologyOptimizer.compute_spring_energies(
-                                s, st.session_state.u
-                            )
-
-                    if st.session_state.u is None:
-                        st.error("FEM konnte nicht gelöst werden.")
-                    else:
-                        removed = TopologyOptimizer.optimization_step(s, st.session_state.u)
-                        if removed is None:
-                            st.warning("Kein Knoten mehr entfernbar.")
-                        else:
-                            u = solve_structure(s)
-                            st.session_state.u = u
-                            st.session_state.energies = (
-                                TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
-                            )
-                            total_e = sum(st.session_state.energies.values()) if st.session_state.energies else 0
-                            st.session_state.energy_history.append(total_e)
-                            st.session_state.status_msg = f"Knoten {removed} entfernt"
-                            st.rerun()
-            except Exception as e:
-                st.error(f"Optimierer-Fehler: {e}")
-
-        if st.button(f"Optimieren ({int(mass_fraction * 100)}% Masse)"):
+        btn_label = "Original wiederherstellen" if mass_fraction >= 1.0 else f"Optimieren ({int(mass_fraction * 100)}% Masse)"
+        if st.button(btn_label):
             try:
                 if not _has_forces(st.session_state.structure_base):
                     st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
@@ -266,16 +236,7 @@ def main():
             except Exception as e:
                 st.error(f"Optimierer-Fehler: {e}")
 
-        if st.button("Reset"):
-            s2 = Structure(s.width, s.height)
-            st.session_state.structure = s2
-            st.session_state.structure_base = deepcopy(s2)
-            st.session_state.u = None
-            st.session_state.energies = None
-            st.session_state.energy_history = []
-            st.rerun()
-
-        # --- Statistiken ---
+# --- Statistiken ---
         st.markdown("---")
         st.metric("Knoten aktiv", f"{s.active_node_count()} / {len(s.nodes)}")
         st.metric("Federn aktiv", f"{s.active_spring_count()} / {len(s.springs)}")
