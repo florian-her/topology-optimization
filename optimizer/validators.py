@@ -1,15 +1,14 @@
-import numpy as np
 import networkx as nx
 
 from model.structure import Structure
 
 
 class StructureValidator:
-    """Prüft strukturelle Integrität: Zusammenhang und mechanische Stabilität."""
+    """Prüft strukturelle Integrität: Zusammenhang und Lastpfad."""
 
     @staticmethod
     def is_connected(structure: Structure) -> bool:
-        """Prüft ob die Struktur (aktive Federn) zusammenhängend ist.
+        """Prüft ob alle aktiven Knoten zusammenhängend sind.
 
         Parameters
         ----------
@@ -19,10 +18,14 @@ class StructureValidator:
         Returns
         -------
         bool
-            True wenn alle Knoten verbunden sind, False sonst.
+            True wenn alle aktiven Knoten verbunden sind, False sonst.
         """
+        active_ids = [n.id for n in structure.nodes if n.active]
+        if len(active_ids) <= 1:
+            return True
+
         G = nx.Graph()
-        G.add_nodes_from(node.id for node in structure.nodes)
+        G.add_nodes_from(active_ids)
         G.add_edges_from(
             (s.node_a.id, s.node_b.id)
             for s in structure.springs
@@ -31,83 +34,82 @@ class StructureValidator:
         return nx.is_connected(G)
 
     @staticmethod
-    def is_mechanically_stable(
-        structure: Structure,
-        cond_threshold: float = 1e10,
-    ) -> bool:
-        """Prüft ob die Steifigkeitsmatrix (mit Randbedingungen) gut konditioniert ist.
-
-        Graph-Zusammenhang allein reicht nicht: Eine Struktur kann verbunden aber
-        trotzdem ein Mechanismus sein (singuläre K-Matrix). Diese Methode prüft
-        ob cond(K) unter dem Schwellenwert bleibt.
+    def has_load_paths(structure: Structure) -> bool:
+        """Prüft ob jeder aktive Kraftknoten einen Pfad zu einem aktiven Lagerknoten hat.
 
         Parameters
         ----------
         structure : Structure
-            Die Struktur.
-        cond_threshold : float, optional
-            Maximale erlaubte Konditionszahl, by default 1e10.
+            Die zu prüfende Struktur.
 
         Returns
         -------
         bool
-            True wenn K gut konditioniert ist, False bei Mechanismus/Singularität.
+            True wenn alle Lastpfade vorhanden sind, False sonst.
         """
-        from solver.fem_solver import assemble_global_K, get_fixed_dofs
+        G = nx.Graph()
+        G.add_nodes_from(n.id for n in structure.nodes if n.active)
+        G.add_edges_from(
+            (s.node_a.id, s.node_b.id)
+            for s in structure.springs
+            if s.active
+        )
 
-        fixed = get_fixed_dofs(structure)
-        if not fixed:
+        support_ids = {
+            n.id for n in structure.nodes
+            if n.active and (n.fix_x or n.fix_y)
+        }
+
+        if not support_ids:
             return False
 
-        K = assemble_global_K(structure)
+        for node in structure.nodes:
+            if not node.active:
+                continue
+            if node.force_x != 0 or node.force_y != 0:
+                if not any(nx.has_path(G, node.id, s_id) for s_id in support_ids):
+                    return False
 
-        # Dirichlet-RB anwenden
-        for d in fixed:
-            K[d, :] = 0.0
-            K[:, d] = 0.0
-            K[d, d] = 1.0
-
-        try:
-            cond = np.linalg.cond(K)
-            return float(cond) < cond_threshold
-        except np.linalg.LinAlgError:
-            return False
+        return True
 
     @staticmethod
-    def can_remove_spring(structure: Structure, spring_id: int) -> bool:
-        """Prüft ob eine Feder entfernt werden kann.
+    def can_remove_node(structure: Structure, node_id: int) -> bool:
+        """Prüft ob ein Knoten entfernt werden kann.
 
-        Zwei Kriterien müssen erfüllt sein:
-        1. Graph bleibt zusammenhängend (schnelle Prüfung zuerst)
-        2. K-Matrix bleibt gut konditioniert (kein Mechanismus)
+        Kriterien:
+        1. Graph bleibt zusammenhängend (nur aktive Knoten/Federn)
+        2. Alle Lastpfade bleiben erhalten
 
         Parameters
         ----------
         structure : Structure
             Die Struktur.
-        spring_id : int
-            ID der zu prüfenden Feder.
+        node_id : int
+            ID des zu prüfenden Knotens.
 
         Returns
         -------
         bool
             True wenn beide Kriterien erfüllt sind, False sonst.
         """
-        spring = next((s for s in structure.springs if s.id == spring_id), None)
-        assert spring is not None, f"Feder mit ID {spring_id} nicht gefunden."
-        assert spring.active, f"Feder {spring_id} ist bereits inaktiv."
+        node = structure.nodes[node_id]
+        assert node.active, f"Knoten {node_id} ist bereits inaktiv."
 
-        spring.active = False
+        node.active = False
+        affected_springs = []
+        for spring in structure.springs:
+            if spring.active and (spring.node_a.id == node_id or spring.node_b.id == node_id):
+                spring.active = False
+                affected_springs.append(spring)
 
-        # 1. Schnelle Prüfung: Zusammenhang
         connected = StructureValidator.is_connected(structure)
+        load_paths_ok = StructureValidator.has_load_paths(structure) if connected else False
 
-        # 2. Nur wenn verbunden: mechanische Stabilität (K-Kondition)
-        stable = StructureValidator.is_mechanically_stable(structure) if connected else False
+        node.active = True
+        for spring in affected_springs:
+            spring.active = True
 
-        spring.active = True
-
-        return connected and stable
+        return connected and load_paths_ok
 
 
 if __name__ == "__main__":
@@ -115,4 +117,9 @@ if __name__ == "__main__":
 
     s = Structure(3, 3)
     print(f"Zusammenhängend: {StructureValidator.is_connected(s)}")
-    print(f"Feder 0 entfernbar: {StructureValidator.can_remove_spring(s, 0)}")
+    print(f"Lastpfade OK: {StructureValidator.has_load_paths(s)}")
+
+    s.nodes[0].fix_x = 1
+    s.nodes[0].fix_y = 1
+    s.nodes[2].force_y = -1.0
+    print(f"Knoten 4 entfernbar: {StructureValidator.can_remove_node(s, 4)}")

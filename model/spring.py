@@ -3,18 +3,18 @@ import numpy.typing as npt
 
 class Spring:
     def __init__(self, spring_id, node_a, node_b, k: float | None = None):
-        """Initialize a spring element between two nodes.
+        """Initialisiert eine Feder zwischen zwei Knoten.
 
-        Parameters
+        Parameter
         ----------
         spring_id : int
-            Unique identifier for the spring.
+            Eindeutige Feder-ID.
         node_a : Node
-            First node (start).
+            FErste node (start).
         node_b : Node
-            Second node (end).
+            Zweite node (ende).
         k : float | None, optional
-            Spring stiffness. If None, auto-detected from geometry:
+            Federsteifigkeit. If None, auto-detected from geometry:
             - 1.0 for horizontal/vertical springs
             - 1/√2 ≈ 0.707 for diagonal springs (±45°)
         """
@@ -117,7 +117,7 @@ if __name__ == "__main__":
     print("Spring Stiffness Matrix Tests")
     print("=" * 60)
 
-    # Test 1: Horizontal spring (wie Hilfestellung Seite 3)
+    # Test 1: Horizontal spring (wie Hilfestellung)
     print("\n1. Horizontal Spring (0,0) -> (1,0)")
     print("-" * 60)
     node_0 = Node(0, 0.0, 0.0)
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     print(" [0, 0, 0, 0],")
     print(" [0, -1, 0, 1]]")
 
-    # Test 3: Diagonal spring (wie Hilfestellung Seite 4)
+    # Test 3: Diagonal spring (wie Hilfestellung)
     print("\n\n3. Diagonal Spring (0,0) -> (1,1)")
     print("-" * 60)
     node_2 = Node(2, 1.0, 1.0)

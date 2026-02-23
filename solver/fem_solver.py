@@ -55,7 +55,7 @@ def assemble_force_vector(structure: Structure) -> npt.NDArray[np.float64]:
 
     for node in structure.nodes:
         F[2 * node.id] = node.force_x
-        F[2 * node.id + 1] = node.force_y
+        F[2 * node.id + 1] = -node.force_y
 
     return F
 
@@ -75,10 +75,14 @@ def get_fixed_dofs(structure: Structure) -> list[int]:
     """
     fixed = []
     for node in structure.nodes:
-        if node.fix_x:
+        if not node.active:
             fixed.append(2 * node.id)
-        if node.fix_y:
             fixed.append(2 * node.id + 1)
+        else:
+            if node.fix_x:
+                fixed.append(2 * node.id)
+            if node.fix_y:
+                fixed.append(2 * node.id + 1)
     return fixed
 
 

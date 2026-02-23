@@ -9,8 +9,8 @@ from optimizer.validators import StructureValidator
 class TopologyOptimizer:
     """Iterativer Topologieoptimierer auf Basis der Verformungsenergie.
 
-    Strategie: Pro Schritt wird die 1 aktivste Feder mit der geringsten
-    Verformungsenergie entfernt, sofern der Zusammenhang gewährleistet bleibt.
+    Strategie: Pro Schritt wird der Knoten mit der geringsten Knotenimportanz
+    entfernt, sofern Zusammenhang und Lastpfade erhalten bleiben.
     """
 
     @staticmethod
@@ -20,8 +20,7 @@ class TopologyOptimizer:
     ) -> dict[int, float]:
         """Berechnet die Verformungsenergie jeder aktiven Feder.
 
-        Formel: E = 0.5 * u_e^T @ Ko @ u_e
-        (u_e = Verschiebungsvektor der 4 DOFs des Federelements)
+        Formel: c^(i,j) = 0.5 * u_e^T @ Ko @ u_e
 
         Parameters
         ----------
@@ -50,14 +49,59 @@ class TopologyOptimizer:
         return energies
 
     @staticmethod
+    def compute_node_energies(
+        structure: Structure,
+        u: npt.NDArray[np.float64],
+    ) -> dict[int, float]:
+        """Berechnet die Knotenimportanz als Summe der halben Federenergien.
+
+        Formel:
+            c_node = sum(c^(i,j) / 2) für alle angrenzenden aktiven Federn
+
+        Nur freie aktive Knoten (nicht fixiert, nicht belastet) werden bewertet.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur.
+        u : npt.NDArray[np.float64]
+            Globaler Verschiebungsvektor.
+
+        Returns
+        -------
+        dict[int, float]
+            Mapping node_id → Knotenimportanz (nur optimierbare Knoten).
+        """
+        spring_energies = TopologyOptimizer.compute_spring_energies(structure, u)
+
+        node_energy: dict[int, float] = {}
+        for spring in structure.springs:
+            if not spring.active:
+                continue
+            half_e = spring_energies[spring.id] / 2.0
+            for nid in (spring.node_a.id, spring.node_b.id):
+                node_energy[nid] = node_energy.get(nid, 0.0) + half_e
+
+        result: dict[int, float] = {}
+        for node in structure.nodes:
+            if not node.active:
+                continue
+            if node.fix_x or node.fix_y:
+                continue
+            if node.force_x != 0 or node.force_y != 0:
+                continue
+            result[node.id] = node_energy.get(node.id, 0.0)
+
+        return result
+
+    @staticmethod
     def optimization_step(
         structure: Structure,
         u: npt.NDArray[np.float64],
     ) -> int | None:
-        """Entfernt die Feder mit der geringsten Verformungsenergie.
+        """Entfernt den Knoten mit der geringsten Knotenimportanz.
 
-        Prüft Zusammenhang VOR dem Entfernen. Überspringt Federn, die den
-        Zusammenhang zerstören würden (Brücken im Graphen).
+        Prüft Zusammenhang und Lastpfade VOR dem Entfernen.
 
         Parameters
         ----------
@@ -69,64 +113,63 @@ class TopologyOptimizer:
         Returns
         -------
         int | None
-            spring_id der entfernten Feder, oder None wenn keine entfernt werden kann.
+            node_id des entfernten Knotens, oder None wenn keiner entfernt werden kann.
         """
-        energies = TopologyOptimizer.compute_spring_energies(structure, u)
+        node_energies = TopologyOptimizer.compute_node_energies(structure, u)
 
-        if not energies:
+        if not node_energies:
             return None
 
-        # Aufsteigend nach Energie sortieren
-        sorted_springs = sorted(energies.items(), key=lambda x: x[1])
+        sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
 
-        for spring_id, energy in sorted_springs:
-            if StructureValidator.can_remove_spring(structure, spring_id):
-                spring = next(s for s in structure.springs if s.id == spring_id)
-                spring.active = False
-                return spring_id
+        for node_id, _ in sorted_nodes:
+            if StructureValidator.can_remove_node(structure, node_id):
+                structure.remove_node(node_id)
+                return node_id
 
-        return None  # Alle Federn sind Brücken
+        return None
 
     @staticmethod
     def run(
         structure: Structure,
-        n_steps: int,
+        mass_fraction: float,
     ) -> list[float]:
-        """Führt n_steps Optimierungsschritte durch.
+        """Optimiert die Struktur bis zum Ziel-Massenanteil.
 
-        In jedem Schritt: FEM lösen → schwächste entfernbare Feder deaktivieren.
+        Schleife:
+        FEM lösen → Knotenimportanzen berechnen → schwächsten entfernbaren
+        Knoten deaktivieren → wiederholen bis Ist-Masse ≤ Soll-Masse.
 
         Parameters
         ----------
         structure : Structure
             Die Ausgangsstruktur (wird in-place modifiziert).
-        n_steps : int
-            Anzahl der Optimierungsschritte.
+        mass_fraction : float
+            Ziel-Massenanteil [0, 1]. 0.5 = 50% der Knoten behalten.
 
         Returns
         -------
         list[float]
             Gesamt-Verformungsenergie nach jedem Schritt.
         """
-        assert n_steps > 0, "n_steps muss positiv sein."
+        assert 0.0 < mass_fraction < 1.0, "mass_fraction muss zwischen 0 und 1 liegen."
+
+        total_nodes = structure.active_node_count()
+        target_nodes = max(2, int(total_nodes * mass_fraction))
 
         energy_history: list[float] = []
 
-        for step in range(n_steps):
+        while structure.active_node_count() > target_nodes:
             u = solve_structure(structure)
-
             if u is None:
-                print(f"Schritt {step}: FEM konnte nicht gelöst werden — Abbruch.")
                 break
 
-            energies = TopologyOptimizer.compute_spring_energies(structure, u)
-            total_energy = sum(energies.values())
+            spring_energies = TopologyOptimizer.compute_spring_energies(structure, u)
+            total_energy = sum(spring_energies.values())
             energy_history.append(total_energy)
 
             removed = TopologyOptimizer.optimization_step(structure, u)
-
             if removed is None:
-                print(f"Schritt {step}: Keine Feder mehr entfernbar — Abbruch.")
                 break
 
         return energy_history
@@ -136,23 +179,19 @@ if __name__ == "__main__":
     from model.structure import Structure
 
     print("=" * 60)
-    print("Topologieoptimierung: 4x4-Kragarm")
+    print("Topologieoptimierung: 4x4-Kragarm (Massenreduktion 50%)")
     print("=" * 60)
 
     s = Structure(4, 4)
 
-    # Linke Spalte fixieren
     for y in range(s.height):
         nid = s._node_id(0, y)
         s.nodes[nid].fix_x = 1
         s.nodes[nid].fix_y = 1
 
-    # Kraft an Mitte rechts (y=1)
     mid_right = s._node_id(s.width - 1, s.height // 2)
-    s.nodes[mid_right].force_y = 10.0
+    s.nodes[mid_right].force_y = -1.0
 
-    history = TopologyOptimizer.run(s, n_steps=10)
-    active_springs = sum(1 for sp in s.springs if sp.active)
-
-    print(f"\nAktive Federn nach 10 Schritten: {active_springs}")
+    history = TopologyOptimizer.run(s, mass_fraction=0.5)
+    print(f"\nAktive Knoten nach Optimierung: {s.active_node_count()} / {len(s.nodes)}")
     print(f"Energie-Verlauf: {[f'{e:.4f}' for e in history]}")

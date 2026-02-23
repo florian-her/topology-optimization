@@ -24,15 +24,19 @@ def _has_bcs(structure: Structure) -> bool:
 
 
 def _apply_default_bcs(structure: Structure) -> None:
-    """Standard-Randbedingungen: linke Spalte fixiert, Kraft rechts-Mitte."""
-    for y in range(structure.height):
-        nid = structure._node_id(0, y)
-        structure.nodes[nid].fix_x = 1
-        structure.nodes[nid].fix_y = 1
+    """Standard-Randbedingungen: Festlager unten links, Loslager unten rechts, Kraft unten Mitte."""
+    bottom = structure.height - 1
 
-    mid_y = structure.height // 2
-    nid = structure._node_id(structure.width - 1, mid_y)
-    structure.nodes[nid].force_y = 1.0
+    nid = structure._node_id(0, bottom)
+    structure.nodes[nid].fix_x = 1
+    structure.nodes[nid].fix_y = 1
+
+    nid = structure._node_id(structure.width - 1, bottom)
+    structure.nodes[nid].fix_y = 1
+
+    mid_x = structure.width // 2
+    nid = structure._node_id(mid_x, bottom)
+    structure.nodes[nid].force_y = -0.5
 
 
 def main():
@@ -47,6 +51,8 @@ def main():
         st.session_state.energies = None
     if "energy_history" not in st.session_state:
         st.session_state.energy_history = []
+    if "status_msg" not in st.session_state:
+        st.session_state.status_msg = None
 
     # --- Sidebar ---
     st.sidebar.header("Gitter")
@@ -69,11 +75,11 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
-    scale_factor = st.sidebar.slider("Verformungs-Skalierung", 0.0, 50.0, 0.0, 0.5)
+    scale_factor = st.sidebar.slider("Verformungs-Skalierung", 0.0, 2.0, 1.0, 0.01)
 
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
-    n_steps = st.sidebar.number_input("Schritte", min_value=1, max_value=500, value=10, step=1)
+    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 0.95, 0.5, 0.05)
 
     # --- Hauptbereich ---
     s = st.session_state.structure
@@ -129,6 +135,10 @@ def main():
         # --- FEM + Optimizer ---
         st.subheader("Analyse")
 
+        if st.session_state.status_msg:
+            st.success(st.session_state.status_msg)
+            st.session_state.status_msg = None
+
         if st.button("FEM lösen"):
             try:
                 if not _has_bcs(s):
@@ -144,7 +154,8 @@ def main():
                         st.session_state.u = u
                         st.session_state.energies = TopologyOptimizer.compute_spring_energies(s, u)
                         total_e = sum(st.session_state.energies.values())
-                        st.success(f"Energie: {total_e:.4f}")
+                        st.session_state.status_msg = f"Energie: {total_e:.4f}"
+                        st.rerun()
             except Exception as e:
                 st.error(f"FEM-Fehler: {e}")
 
@@ -153,7 +164,6 @@ def main():
                 if not _has_forces(s):
                     st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
                 else:
-                    # Auto-solve FEM falls noch nicht gelöst
                     if st.session_state.u is None:
                         st.session_state.u = solve_structure(s)
                         if st.session_state.u is not None:
@@ -166,7 +176,7 @@ def main():
                     else:
                         removed = TopologyOptimizer.optimization_step(s, st.session_state.u)
                         if removed is None:
-                            st.warning("Keine Feder mehr entfernbar.")
+                            st.warning("Kein Knoten mehr entfernbar.")
                         else:
                             u = solve_structure(s)
                             st.session_state.u = u
@@ -175,27 +185,30 @@ def main():
                             )
                             total_e = sum(st.session_state.energies.values()) if st.session_state.energies else 0
                             st.session_state.energy_history.append(total_e)
-                            st.success(f"Feder {removed} entfernt")
+                            st.session_state.status_msg = f"Knoten {removed} entfernt"
+                            st.rerun()
             except Exception as e:
                 st.error(f"Optimierer-Fehler: {e}")
 
-        if st.button(f"{int(n_steps)} Schritte"):
+        if st.button(f"Optimieren ({int(mass_fraction * 100)}% Masse)"):
             try:
                 if not _has_forces(s):
                     st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
                 elif not _has_bcs(s):
                     st.warning("Keine Lagerung definiert — bitte zuerst Lager setzen.")
                 else:
-                    with st.spinner(f"Optimiere {int(n_steps)} Schritte …"):
-                        history = TopologyOptimizer.run(s, n_steps=int(n_steps))
+                    with st.spinner(f"Optimiere bis {int(mass_fraction * 100)}% Masse …"):
+                        history = TopologyOptimizer.run(s, mass_fraction=mass_fraction)
                         st.session_state.energy_history.extend(history)
                         u = solve_structure(s)
                         st.session_state.u = u
                         st.session_state.energies = (
                             TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
                         )
-                    active = sum(1 for sp in s.springs if sp.active)
-                    st.success(f"{len(history)} Schritte · {active} Federn aktiv")
+                    st.session_state.status_msg = (
+                        f"{len(history)} Schritte · {s.active_node_count()} Knoten aktiv"
+                    )
+                    st.rerun()
             except Exception as e:
                 st.error(f"Optimierer-Fehler: {e}")
 
@@ -209,8 +222,8 @@ def main():
 
         # --- Statistiken ---
         st.markdown("---")
-        active = sum(1 for sp in s.springs if sp.active)
-        st.metric("Federn aktiv", f"{active} / {len(s.springs)}")
+        st.metric("Knoten aktiv", f"{s.active_node_count()} / {len(s.nodes)}")
+        st.metric("Federn aktiv", f"{s.active_spring_count()} / {len(s.springs)}")
 
         if st.session_state.energy_history:
             st.line_chart(st.session_state.energy_history)
