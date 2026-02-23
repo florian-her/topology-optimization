@@ -154,7 +154,7 @@ class TopologyOptimizer:
         """
         assert 0.0 < mass_fraction < 1.0, "mass_fraction muss zwischen 0 und 1 liegen."
 
-        total_nodes = structure.active_node_count()
+        total_nodes = len(structure.nodes)
         target_nodes = max(2, int(total_nodes * mass_fraction))
 
         energy_history: list[float] = []
