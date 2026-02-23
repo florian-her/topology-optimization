@@ -75,7 +75,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
-    scale_factor = st.sidebar.slider("Verformungs-Skalierung", 0.0, 2.0, 1.0, 0.01)
+    scale_factor = st.sidebar.slider("Verformungs-Skalierung", 0.0, 2.0, 1.0, 0.05)
 
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
