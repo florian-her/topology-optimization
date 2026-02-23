@@ -4,6 +4,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import streamlit as st
 import numpy as np
+from copy import deepcopy
 
 from model.structure import Structure
 from solver.fem_solver import solve_structure
@@ -53,6 +54,8 @@ def main():
         st.session_state.energy_history = []
     if "status_msg" not in st.session_state:
         st.session_state.status_msg = None
+    if "structure_base" not in st.session_state:
+        st.session_state.structure_base = None
 
     # --- Sidebar ---
     st.sidebar.header("Gitter")
@@ -63,6 +66,7 @@ def main():
         s = Structure(width, height)
         _apply_default_bcs(s)
         st.session_state.structure = s
+        st.session_state.structure_base = deepcopy(s)
         st.session_state.u = None
         st.session_state.energies = None
         st.session_state.energy_history = []
@@ -70,6 +74,7 @@ def main():
     if st.session_state.structure:
         if st.sidebar.button("Standard-Lagerung setzen"):
             _apply_default_bcs(st.session_state.structure)
+            st.session_state.structure_base = deepcopy(st.session_state.structure)
             st.session_state.u = None
             st.session_state.energies = None
 
@@ -79,7 +84,7 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
-    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 0.95, 0.5, 0.05)
+    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
 
     # --- Hauptbereich ---
     s = st.session_state.structure
@@ -126,6 +131,7 @@ def main():
                     selected_node.fix_y = 1 if fix_y else 0
                     selected_node.force_x = force_x
                     selected_node.force_y = force_y
+                    st.session_state.structure_base = deepcopy(st.session_state.structure)
                     st.session_state.u = None
                     st.session_state.energies = None
                     st.rerun()
@@ -192,22 +198,33 @@ def main():
 
         if st.button(f"Optimieren ({int(mass_fraction * 100)}% Masse)"):
             try:
-                if not _has_forces(s):
+                if not _has_forces(st.session_state.structure_base):
                     st.warning("Keine Kräfte definiert — bitte zuerst Kräfte setzen.")
-                elif not _has_bcs(s):
+                elif not _has_bcs(st.session_state.structure_base):
                     st.warning("Keine Lagerung definiert — bitte zuerst Lager setzen.")
                 else:
-                    with st.spinner(f"Optimiere bis {int(mass_fraction * 100)}% Masse …"):
-                        history = TopologyOptimizer.run(s, mass_fraction=mass_fraction)
-                        st.session_state.energy_history.extend(history)
-                        u = solve_structure(s)
+                    s_fresh = deepcopy(st.session_state.structure_base)
+                    st.session_state.structure = s_fresh
+                    st.session_state.energy_history = []
+                    if mass_fraction >= 1.0:
+                        u = solve_structure(s_fresh)
                         st.session_state.u = u
                         st.session_state.energies = (
-                            TopologyOptimizer.compute_spring_energies(s, u) if u is not None else None
+                            TopologyOptimizer.compute_spring_energies(s_fresh, u) if u is not None else None
                         )
-                    st.session_state.status_msg = (
-                        f"{len(history)} Schritte · {s.active_node_count()} Knoten aktiv"
-                    )
+                        st.session_state.status_msg = "Originalstruktur wiederhergestellt"
+                    else:
+                        with st.spinner(f"Optimiere bis {int(mass_fraction * 100)}% Masse …"):
+                            history = TopologyOptimizer.run(s_fresh, mass_fraction=mass_fraction)
+                            st.session_state.energy_history.extend(history)
+                            u = solve_structure(s_fresh)
+                            st.session_state.u = u
+                            st.session_state.energies = (
+                                TopologyOptimizer.compute_spring_energies(s_fresh, u) if u is not None else None
+                            )
+                        st.session_state.status_msg = (
+                            f"{len(history)} Schritte · {s_fresh.active_node_count()} Knoten aktiv"
+                        )
                     st.rerun()
             except Exception as e:
                 st.error(f"Optimierer-Fehler: {e}")
@@ -215,6 +232,7 @@ def main():
         if st.button("Reset"):
             s2 = Structure(s.width, s.height)
             st.session_state.structure = s2
+            st.session_state.structure_base = deepcopy(s2)
             st.session_state.u = None
             st.session_state.energies = None
             st.session_state.energy_history = []
