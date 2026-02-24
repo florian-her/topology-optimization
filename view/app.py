@@ -3,7 +3,6 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import streamlit as st
-import numpy as np
 from copy import deepcopy
 
 from model.structure import Structure
@@ -48,37 +47,28 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
     col_plot, col_ctrl = st.columns([3, 1])
 
     with col_plot:
-        sel_c1, sel_c2 = st.columns(2)
-        sel_x = sel_c1.slider("Knoten X", 0, s.width - 1, 0)
-        sel_y = sel_c2.slider("Knoten Y", 0, s.height - 1, 0)
-
-        selected_node = next(
-            (n for n in s.nodes if int(n.x) == sel_x and int(n.y) == sel_y), None
-        )
-
         fig = plot_structure(
             s,
             energies=st.session_state.energies,
             scale_factor=scale_factor,
-            highlight_node=selected_node,
+            highlight_node_id=st.session_state.selected_node_id,
         )
-        st.pyplot(fig)
+        event = st.plotly_chart(
+            fig, on_select="rerun", selection_mode=("points",),
+            use_container_width=True,
+        )
+        if event and event.selection and event.selection.points:
+            nid = event.selection.points[0].get("customdata", [None])[0]
+            if nid is not None:
+                st.session_state.selected_node_id = int(nid)
 
-        dl1, dl2 = st.columns(2)
-        dl1.download_button(
-            "Struktur (JSON)",
-            IOHandler.to_json_bytes(s),
-            file_name="struktur.json",
-            mime="application/json",
-            use_container_width=True,
+        selected_node = next(
+            (n for n in s.nodes if n.id == st.session_state.selected_node_id), None
         )
-        dl2.download_button(
-            "Bild (PNG)",
-            IOHandler.to_png_bytes(fig),
-            file_name="struktur.png",
-            mime="image/png",
-            use_container_width=True,
-        )
+        if st.session_state.selected_node_id is not None:
+            if st.button("Auswahl aufheben", key="deselect"):
+                st.session_state.selected_node_id = None
+                st.rerun()
 
     with col_ctrl:
         # --- Material-Selektor ---
@@ -193,6 +183,62 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
             st.line_chart(st.session_state.energy_history)
 
 
+def _tab_speichern(s: Structure, scale_factor: float) -> None:
+    st.header("Speichern / Laden")
+
+    col_save, col_load = st.columns(2)
+
+    with col_save:
+        st.subheader("Exportieren")
+        st.download_button(
+            "Struktur herunterladen (JSON)",
+            IOHandler.to_json_bytes(s),
+            file_name=f"struktur_{s.width}x{s.height}_{s.material.name}.json",
+            mime="application/json",
+            use_container_width=True,
+        )
+
+        fig_export = plot_structure(
+            s,
+            energies=st.session_state.energies,
+            scale_factor=scale_factor,
+        )
+        st.download_button(
+            "Bild herunterladen (PNG)",
+            IOHandler.to_png_bytes(fig_export),
+            file_name=f"struktur_{s.width}x{s.height}_{s.material.name}.png",
+            mime="image/png",
+            use_container_width=True,
+        )
+        st.markdown("---")
+        st.caption(
+            f"Material: {s.material.name}  |  "
+            f"Gitter: {s.width}×{s.height}  |  "
+            f"Knoten aktiv: {s.active_node_count()}/{len(s.nodes)}  |  "
+            f"Federn aktiv: {s.active_spring_count()}/{len(s.springs)}"
+        )
+
+    with col_load:
+        st.subheader("Laden")
+        uploaded = st.file_uploader("Struktur laden (.json)", type=["json"])
+        if uploaded is not None and uploaded.name != st.session_state.last_uploaded:
+            try:
+                s_loaded = IOHandler.load_from_bytes(uploaded.read())
+                if not any(m.name == s_loaded.material.name for m in st.session_state.materials):
+                    st.session_state.materials.append(s_loaded.material)
+                st.session_state.structure = s_loaded
+                st.session_state.structure_base = deepcopy(s_loaded)
+                st.session_state.u = None
+                st.session_state.energies = None
+                st.session_state.energy_history = []
+                st.session_state.last_uploaded = uploaded.name
+                st.session_state.selected_node_id = None
+                st.session_state.status_msg = f"Struktur geladen: {uploaded.name}"
+                st.rerun()
+            except Exception as e:
+                st.error(f"Ladefehler: {e}")
+
+
 def _tab_materialien() -> None:
     st.header("Materialien")
 
@@ -261,11 +307,14 @@ def main():
         st.session_state.last_uploaded = None
     if "materials" not in st.session_state:
         st.session_state.materials = Material.defaults()
+    if "selected_node_id" not in st.session_state:
+        st.session_state.selected_node_id = None
 
     # --- Sidebar ---
     st.sidebar.header("Gitter")
-    width = st.sidebar.slider("Breite (Nodes)", 3, 30, 10)
-    height = st.sidebar.slider("Höhe (Nodes)", 3, 15, 6)
+    col_w, col_h = st.sidebar.columns(2)
+    width = int(col_w.number_input("Breite", min_value=2, max_value=500, value=10, step=1))
+    height = int(col_h.number_input("Höhe", min_value=2, max_value=200, value=6, step=1))
 
     if st.sidebar.button("Struktur initialisieren"):
         s = Structure(width, height)
@@ -275,6 +324,7 @@ def main():
         st.session_state.u = None
         st.session_state.energies = None
         st.session_state.energy_history = []
+        st.session_state.selected_node_id = None
 
     if st.session_state.structure:
         if st.sidebar.button("Standard-Lagerung setzen"):
@@ -282,26 +332,6 @@ def main():
             st.session_state.structure_base = deepcopy(st.session_state.structure)
             st.session_state.u = None
             st.session_state.energies = None
-
-    st.sidebar.markdown("---")
-    st.sidebar.header("Speichern / Laden")
-
-    uploaded = st.sidebar.file_uploader("Struktur laden (.json)", type=["json"])
-    if uploaded is not None and uploaded.name != st.session_state.last_uploaded:
-        try:
-            s_loaded = IOHandler.load_from_bytes(uploaded.read())
-            if not any(m.name == s_loaded.material.name for m in st.session_state.materials):
-                st.session_state.materials.append(s_loaded.material)
-            st.session_state.structure = s_loaded
-            st.session_state.structure_base = deepcopy(s_loaded)
-            st.session_state.u = None
-            st.session_state.energies = None
-            st.session_state.energy_history = []
-            st.session_state.last_uploaded = uploaded.name
-            st.session_state.status_msg = f"Struktur geladen: {uploaded.name}"
-            st.rerun()
-        except Exception as e:
-            st.sidebar.error(f"Ladefehler: {e}")
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
@@ -312,7 +342,7 @@ def main():
     mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
 
     # --- Tabs ---
-    tab_struct, tab_mat = st.tabs(["Struktur & Analyse", "Materialien"])
+    tab_struct, tab_io, tab_mat = st.tabs(["Struktur & Analyse", "Speichern / Laden", "Materialien"])
 
     with tab_mat:
         _tab_materialien()
@@ -323,6 +353,13 @@ def main():
             st.info("Struktur initialisieren (Sidebar links).")
         else:
             _tab_struktur(s, scale_factor, mass_fraction)
+
+    with tab_io:
+        s = st.session_state.structure
+        if not s:
+            st.info("Struktur initialisieren (Sidebar links).")
+        else:
+            _tab_speichern(s, scale_factor)
 
 
 if __name__ == "__main__":

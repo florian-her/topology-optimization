@@ -1,7 +1,6 @@
 import json
-import io
 
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 from model.structure import Structure
 from model.material import Material
@@ -68,7 +67,7 @@ class IOHandler:
     def load(filepath: str) -> Structure:
         """Lädt eine Struktur aus einer JSON-Datei.
 
-        Erstellt zunächst ein neues Gitter mit den gespeicherten Maßen,
+        Erstellt ein neues Gitter mit den gespeicherten Maßen,
         überschreibt dann alle Knoten- und Federeigenschaften aus dem JSON.
 
         Parameters
@@ -109,15 +108,15 @@ class IOHandler:
         return structure
 
     @staticmethod
-    def to_png_bytes(fig: plt.Figure) -> bytes:
-        """Exportiert eine Matplotlib-Figur als PNG-Bytes.
+    def to_png_bytes(fig: go.Figure) -> bytes:
+        """Exportiert eine Plotly-Figur als PNG-Bytes (benötigt kaleido).
 
         Geeignet für Streamlit-Download-Buttons:
             st.download_button("Download", IOHandler.to_png_bytes(fig), "plot.png", "image/png")
 
         Parameters
         ----------
-        fig : plt.Figure
+        fig : go.Figure
             Die zu exportierende Figur.
 
         Returns
@@ -125,10 +124,7 @@ class IOHandler:
         bytes
             PNG-Bilddaten.
         """
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
-        buf.seek(0)
-        return buf.read()
+        return fig.to_image(format="png", width=1400, height=800, scale=2)
 
     @staticmethod
     def load_from_bytes(data: bytes) -> Structure:
@@ -174,7 +170,7 @@ class IOHandler:
     def to_json_bytes(structure: Structure) -> bytes:
         """Serialisiert eine Struktur als JSON-Bytes.
 
-        Geeignet für Streamlit-Download-Buttons:
+        Für Streamlit-Download-Buttons:
             st.download_button("Download", IOHandler.to_json_bytes(s), "struktur.json", "application/json")
 
         Parameters
@@ -261,10 +257,6 @@ if __name__ == "__main__":
         print("Alle Assertions bestanden.")
     finally:
         os.unlink(path)
-
-    png = IOHandler.to_png_bytes(plt.figure())
-    print(f"PNG-Bytes: {len(png)} bytes")
-    plt.close("all")
 
     json_bytes = IOHandler.to_json_bytes(s)
     print(f"JSON-Bytes: {len(json_bytes)} bytes")
