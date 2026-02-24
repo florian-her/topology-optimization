@@ -1,7 +1,6 @@
 import json
-import io
 
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 
 from model.structure import Structure
 from model.material import Material
@@ -102,12 +101,12 @@ class IOHandler:
         return structure
 
     @staticmethod
-    def to_png_bytes(fig: plt.Figure) -> bytes:
-        """Wandelt eine Matplotlib-Figur in PNG-Bytes um.
+    def to_png_bytes(fig: go.Figure) -> bytes:
+        """Wandelt eine Plotly-Figur in PNG-Bytes um.
 
         Parameters
         ----------
-        fig : plt.Figure
+        fig : go.Figure
             Die Figur.
 
         Returns
@@ -115,10 +114,7 @@ class IOHandler:
         bytes
             PNG-Bilddaten.
         """
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
-        buf.seek(0)
-        return buf.read()
+        return fig.to_image(format="png", width=1400, height=800, scale=2)
 
     @staticmethod
     def load_from_bytes(data: bytes) -> Structure:
@@ -248,10 +244,6 @@ if __name__ == "__main__":
         print("Alle Assertions bestanden.")
     finally:
         os.unlink(path)
-
-    png = IOHandler.to_png_bytes(plt.figure())
-    print(f"PNG-Bytes: {len(png)} bytes")
-    plt.close("all")
 
     json_bytes = IOHandler.to_json_bytes(s)
     print(f"JSON-Bytes: {len(json_bytes)} bytes")
