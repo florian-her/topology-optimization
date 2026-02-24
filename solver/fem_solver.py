@@ -5,17 +5,17 @@ from model.structure import Structure
 
 
 def assemble_global_K(structure: Structure) -> npt.NDArray[np.float64]:
-    """Assembliert die globale Steifigkeitsmatrix durch Superposition aller aktiven Federn.
+    """Baut die globale Steifigkeitsmatrix aus allen aktiven Federn zusammen.
 
     Parameters
     ----------
     structure : Structure
-        Die Struktur mit Knoten und Federn.
+        Die Struktur.
 
     Returns
     -------
     npt.NDArray[np.float64]
-        Globale Steifigkeitsmatrix K_g der Größe (2*N, 2*N).
+        Steifigkeitsmatrix K_g mit Größe (2*N, 2*N).
     """
     n_dof = len(structure.nodes) * 2
     K_g = np.zeros((n_dof, n_dof))
@@ -39,17 +39,17 @@ def assemble_global_K(structure: Structure) -> npt.NDArray[np.float64]:
 
 
 def assemble_force_vector(structure: Structure) -> npt.NDArray[np.float64]:
-    """Assembliert den globalen Kraftvektor aus den Knotenkräften.
+    """Baut den Kraftvektor aus den Knotenkräften zusammen.
 
     Parameters
     ----------
     structure : Structure
-        Die Struktur mit Knoten und Federn.
+        Die Struktur.
 
     Returns
     -------
     npt.NDArray[np.float64]
-        Kraftvektor F der Größe (2*N,).
+        Kraftvektor F der Länge 2*N.
     """
     n_dof = len(structure.nodes) * 2
     F = np.zeros(n_dof)
@@ -62,17 +62,17 @@ def assemble_force_vector(structure: Structure) -> npt.NDArray[np.float64]:
 
 
 def get_fixed_dofs(structure: Structure) -> list[int]:
-    """Gibt die Indizes aller fixierten Freiheitsgrade zurück (Dirichlet-RB).
+    """Sammelt die Indizes aller fixierten Freiheitsgrade.
 
     Parameters
     ----------
     structure : Structure
-        Die Struktur mit Knoten und Federn.
+        Die Struktur.
 
     Returns
     -------
     list[int]
-        Liste der fixierten DOF-Indizes.
+        Indizes der fixierten DOFs.
     """
     fixed = []
     for node in structure.nodes:
@@ -93,23 +93,23 @@ def solve(
     u_fixed_idx: list[int],
     eps: float = 1e-9,
 ) -> npt.NDArray[np.float64] | None:
-    """Löst das lineare Gleichungssystem K*u = F mit Dirichlet-Randbedingungen.
+    """Löst K*u = F mit fixierten Freiheitsgraden.
 
     Parameters
     ----------
     K : npt.NDArray[np.float64]
-        Steifigkeitsmatrix (wird in-place modifiziert).
+        Steifigkeitsmatrix (wird verändert).
     F : npt.NDArray[np.float64]
         Kraftvektor.
     u_fixed_idx : list[int]
-        Indizes der fixierten Freiheitsgrade (u=0 an diesen Stellen).
+        Fixierte Freiheitsgrade (u=0).
     eps : float, optional
-        Regularisierungsparameter bei singulärer Matrix, by default 1e-9.
+        Regularisierung bei singulärer Matrix.
 
     Returns
     -------
     npt.NDArray[np.float64] | None
-        Verschiebungsvektor u, oder None wenn das System unlösbar ist.
+        Verschiebungsvektor u, oder None bei Fehler.
     """
     assert K.shape[0] == K.shape[1], "Steifigkeitsmatrix K muss quadratisch sein."
     assert K.shape[0] == F.shape[0], "Kraftvektor F muss dieselbe Größe wie K haben."
@@ -136,17 +136,17 @@ def solve(
 
 
 def solve_structure(structure: Structure) -> npt.NDArray[np.float64] | None:
-    """Assembliert und löst das FEM-Gleichungssystem für die gegebene Struktur.
+    """Löst die FEM-Analyse für die Struktur und speichert Verschiebungen in den Knoten.
 
     Parameters
     ----------
     structure : Structure
-        Die Struktur mit gesetzten Randbedingungen und Kräften.
+        Die Struktur mit Lagern und Kräften.
 
     Returns
     -------
     npt.NDArray[np.float64] | None
-        Verschiebungsvektor u der Länge 2*N, oder None bei Fehler.
+        Verschiebungsvektor u, oder None bei Fehler.
     """
     K_g = assemble_global_K(structure)
     F = assemble_force_vector(structure)

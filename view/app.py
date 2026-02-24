@@ -19,17 +19,17 @@ _DEFAULT_MATERIAL_NAMES = {m.name for m in Material.defaults()}
 
 
 def _has_forces(structure: Structure) -> bool:
-    """Prüft ob mindestens eine Kraft definiert ist."""
+    """Prüft ob Kräfte gesetzt sind."""
     return any(n.force_x != 0 or n.force_y != 0 for n in structure.nodes)
 
 
 def _has_bcs(structure: Structure) -> bool:
-    """Prüft ob mindestens eine Lagerung definiert ist."""
+    """Prüft ob Lager gesetzt sind."""
     return any(n.fix_x or n.fix_y for n in structure.nodes)
 
 
 def _apply_default_bcs(structure: Structure) -> None:
-    """Standard-Randbedingungen: Festlager unten links, Loslager unten rechts, Kraft unten Mitte."""
+    """Setzt Standard-Lager und Kraft auf die Struktur."""
     bottom = structure.height - 1
 
     nid = structure._node_id(0, bottom)

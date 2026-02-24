@@ -11,25 +11,23 @@ def plot_structure(
     scale_factor: float = 0.0,
     highlight_node=None,
 ) -> plt.Figure:
-    """Zeichnet Knoten und Federn der Struktur.
+    """Zeichnet die Struktur mit Knoten, Federn und optionaler Energiefärbung.
 
     Parameters
     ----------
     structure : Structure
         Die Struktur.
     energies : dict[int, float] | None, optional
-        Mapping spring_id → Verformungsenergie. Wenn angegeben,
-        werden aktive Federn nach Energie eingefärbt (blau=niedrig, rot=hoch).
+        Feder-ID → Energie für Farbdarstellung.
     scale_factor : float, optional
-        Skalierungsfaktor für Verformungsdarstellung (0 = unverformt).
-        Bei 1.0 entspricht die max. Verschiebung 20% des Knotenabstands.
+        Skalierung der Verformung (0 = unverformt).
     highlight_node : Node | None, optional
-        Knoten der hervorgehoben werden soll (magenta).
+        Knoten der hervorgehoben wird.
 
     Returns
     -------
     plt.Figure
-        Matplotlib-Figur.
+        Die erstellte Figur.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
 
