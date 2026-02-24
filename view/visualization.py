@@ -41,7 +41,8 @@ def plot_structure(
         u_vals = [v for node in structure.nodes if node.active
                   for v in (abs(node.u_x), abs(node.u_y))]
         u_max = max(u_vals) if u_vals else 0.0
-        effective_scale = (scale_factor * 0.2 / u_max) if u_max > 1e-9 else 0.0
+        u_ref = u_max * (structure.material.E / 210.0)
+        effective_scale = (scale_factor * 0.2 / u_ref) if u_ref > 1e-9 else 0.0
     else:
         effective_scale = 0.0
 
