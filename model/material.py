@@ -3,12 +3,12 @@ from __future__ import annotations
 
 class Material:
     def __init__(self, name: str, E: float, yield_strength: float, density: float = 1000.0):
-        """Repräsentiert ein isotropes Linear-elastisches Material.
+        """Erstellt ein Material mit den wichtigsten Kennwerten.
 
         Parameters
         ----------
         name : str
-            Materialname (z.B. "Stahl").
+            Name des Materials.
         E : float
             E-Modul in GPa.
         yield_strength : float
@@ -26,7 +26,7 @@ class Material:
 
     @classmethod
     def defaults(cls) -> list[Material]:
-        """Gibt eine Liste vordefinierter Standardmaterialien zurück.
+        """Gibt die vordefinierten Standardmaterialien zurück.
 
         Returns
         -------
@@ -40,12 +40,12 @@ class Material:
         ]
 
     def to_dict(self) -> dict:
-        """Serialisiert das Material als Dictionary.
+        """Wandelt das Material in ein Dictionary um.
 
         Returns
         -------
         dict
-            JSON-serialisierbares Dictionary.
+            Dictionary mit allen Materialwerten.
         """
         return {
             "name": self.name,
@@ -61,12 +61,12 @@ class Material:
         Parameters
         ----------
         d : dict
-            Dictionary mit Material-Daten.
+            Dictionary mit den Materialwerten.
 
         Returns
         -------
         Material
-            Deserialisiertes Material-Objekt.
+            Das wiederhergestellte Material.
         """
         return cls(
             name=d["name"],
