@@ -10,6 +10,7 @@ from solver.fem_solver import assemble_global_K, assemble_force_vector, get_fixe
 
 
 class TestGlobalKAssembly(unittest.TestCase):
+    """Testet die Assemblierung der globalen Steifigkeitsmatrix."""
 
     def setUp(self):
         # 2x2-Gitter (row-major):
@@ -54,6 +55,7 @@ class TestGlobalKAssembly(unittest.TestCase):
 
 
 class TestSolveCantilever2x2(unittest.TestCase):
+    """Testet den FEM-Solver mit einem 2x2 Kragarm."""
 
     def setUp(self):
         self.s = Structure(2, 2)
