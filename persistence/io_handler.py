@@ -8,24 +8,20 @@ from model.material import Material
 
 
 class IOHandler:
-    """Speichert und lädt Strukturen als JSON; exportiert Plots als PNG."""
+    """Kümmert sich um das Speichern, Laden und Exportieren von Strukturen."""
 
     VERSION = 1
 
     @staticmethod
     def save(structure: Structure, filepath: str) -> None:
-        """Speichert die Struktur in eine JSON-Datei.
-
-        Speichert Gitterdimensionen, alle Knoten (inkl. Randbedingungen,
-        Kräfte, aktiv-Status) und alle Federn (inkl. aktiv-Status, k falls
-        manuell gesetzt).
+        """Speichert die Struktur als JSON-Datei.
 
         Parameters
         ----------
         structure : Structure
-            Die zu speichernde Struktur.
+            Die Struktur die gespeichert werden soll.
         filepath : str
-            Ziel-Dateipfad (z.B. "struktur.json").
+            Pfad zur Zieldatei.
         """
         nodes_data = [
             {
@@ -68,18 +64,15 @@ class IOHandler:
     def load(filepath: str) -> Structure:
         """Lädt eine Struktur aus einer JSON-Datei.
 
-        Erstellt zunächst ein neues Gitter mit den gespeicherten Maßen,
-        überschreibt dann alle Knoten- und Federeigenschaften aus dem JSON.
-
         Parameters
         ----------
         filepath : str
-            Quell-Dateipfad.
+            Pfad zur JSON-Datei.
 
         Returns
         -------
         Structure
-            Wiederhergestellte Struktur.
+            Die geladene Struktur.
         """
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -110,15 +103,12 @@ class IOHandler:
 
     @staticmethod
     def to_png_bytes(fig: plt.Figure) -> bytes:
-        """Exportiert eine Matplotlib-Figur als PNG-Bytes.
-
-        Geeignet für Streamlit-Download-Buttons:
-            st.download_button("Download", IOHandler.to_png_bytes(fig), "plot.png", "image/png")
+        """Wandelt eine Matplotlib-Figur in PNG-Bytes um.
 
         Parameters
         ----------
         fig : plt.Figure
-            Die zu exportierende Figur.
+            Die Figur.
 
         Returns
         -------
@@ -132,17 +122,17 @@ class IOHandler:
 
     @staticmethod
     def load_from_bytes(data: bytes) -> Structure:
-        """Lädt eine Struktur aus JSON-Bytes.
+        """Lädt eine Struktur aus JSON-Bytes (z.B. vom Upload).
 
         Parameters
         ----------
         data : bytes
-            UTF-8-kodierte JSON-Bytes.
+            JSON-Daten als Bytes.
 
         Returns
         -------
         Structure
-            Wiederhergestellte Struktur.
+            Die geladene Struktur.
         """
         raw = json.loads(data.decode("utf-8"))
 
@@ -172,20 +162,17 @@ class IOHandler:
 
     @staticmethod
     def to_json_bytes(structure: Structure) -> bytes:
-        """Serialisiert eine Struktur als JSON-Bytes.
-
-        Geeignet für Streamlit-Download-Buttons:
-            st.download_button("Download", IOHandler.to_json_bytes(s), "struktur.json", "application/json")
+        """Wandelt eine Struktur in JSON-Bytes um (z.B. für Download).
 
         Parameters
         ----------
         structure : Structure
-            Die zu serialisierende Struktur.
+            Die Struktur.
 
         Returns
         -------
         bytes
-            UTF-8-kodierte JSON-Bytes.
+            JSON-Daten als Bytes.
         """
         nodes_data = [
             {
