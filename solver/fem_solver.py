@@ -28,7 +28,8 @@ def assemble_global_K(structure: Structure) -> npt.NDArray[np.float64]:
         j = spring.node_b.id
         dofs = [2 * i, 2 * i + 1, 2 * j, 2 * j + 1]
 
-        Ko = spring.get_stiffness_matrix()  # 4x4
+        E_factor = structure.material.E / 210.0
+        Ko = spring.get_stiffness_matrix() * E_factor
 
         for r, dr in enumerate(dofs):
             for c, dc in enumerate(dofs):

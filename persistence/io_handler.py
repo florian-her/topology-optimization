@@ -4,6 +4,7 @@ import io
 import matplotlib.pyplot as plt
 
 from model.structure import Structure
+from model.material import Material
 
 
 class IOHandler:
@@ -55,6 +56,7 @@ class IOHandler:
             "version": IOHandler.VERSION,
             "width": structure.width,
             "height": structure.height,
+            "material": structure.material.to_dict(),
             "nodes": nodes_data,
             "springs": springs_data,
         }
@@ -86,7 +88,8 @@ class IOHandler:
             f"Unbekannte Dateiversion: {data.get('version')}"
         )
 
-        structure = Structure(data["width"], data["height"])
+        mat = Material.from_dict(data["material"]) if "material" in data else Material.defaults()[0]
+        structure = Structure(data["width"], data["height"], material=mat)
 
         node_by_id = {n.id: n for n in structure.nodes}
         for nd in data["nodes"]:
@@ -147,7 +150,8 @@ class IOHandler:
             f"Unbekannte Dateiversion: {raw.get('version')}"
         )
 
-        structure = Structure(raw["width"], raw["height"])
+        mat = Material.from_dict(raw["material"]) if "material" in raw else Material.defaults()[0]
+        structure = Structure(raw["width"], raw["height"], material=mat)
 
         node_by_id = {n.id: n for n in structure.nodes}
         for nd in raw["nodes"]:
@@ -212,6 +216,7 @@ class IOHandler:
             "version": IOHandler.VERSION,
             "width": structure.width,
             "height": structure.height,
+            "material": structure.material.to_dict(),
             "nodes": nodes_data,
             "springs": springs_data,
         }

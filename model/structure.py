@@ -1,9 +1,10 @@
 from .node import Node
 from .spring import Spring
+from .material import Material
 
 
 class Structure:
-    def __init__(self, width: int, height: int):
+    def __init__(self, width: int, height: int, material: Material | None = None):
         """Initialisiert eine rechteckige Gitterstruktur aus Knoten und Federn.
 
         Parameters
@@ -12,11 +13,14 @@ class Structure:
             Anzahl der Knoten in x-Richtung.
         height : int
             Anzahl der Knoten in y-Richtung.
+        material : Material | None
+            Material der Struktur. Standard: Stahl.
         """
         assert width >= 2, "Breite muss mindestens 2 sein."
         assert height >= 2, "Höhe muss mindestens 2 sein."
         self.width = width
         self.height = height
+        self.material: Material = material if material is not None else Material.defaults()[0]
         self.nodes: list[Node] = []
         self.springs: list[Spring] = []
         self.generate_grid()
