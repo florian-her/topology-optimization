@@ -4,16 +4,16 @@ import numpy.typing as npt
 
 class Node:
     def __init__(self, node_id: int, x: float, y: float):
-        """Initialisiert einen Massenpunkt im 2D-Gitter.
+        """Erstellt einen Knoten mit Position und ID.
 
         Parameters
         ----------
         node_id : int
-            Eindeutige Knoten-ID.
+            Eindeutige ID des Knotens.
         x : float
-            x-Koordinate (Ursprung links oben, x→rechts).
+            x-Position im Gitter.
         y : float
-            y-Koordinate (positiv nach unten).
+            y-Position im Gitter.
         """
         self.id = node_id
         self.x = x

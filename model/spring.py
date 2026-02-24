@@ -3,20 +3,19 @@ import numpy.typing as npt
 
 class Spring:
     def __init__(self, spring_id, node_a, node_b, k: float | None = None):
-        """Initialisiert eine Feder zwischen zwei Knoten.
+        """Erstellt eine Feder zwischen zwei Knoten.
 
-        Parameter
+        Parameters
         ----------
         spring_id : int
-            Eindeutige Feder-ID.
+            Eindeutige ID der Feder.
         node_a : Node
-            FErste node (start).
+            Startknoten.
         node_b : Node
-            Zweite node (ende).
+            Endknoten.
         k : float | None, optional
-            Federsteifigkeit. If None, auto-detected from geometry:
-            - 1.0 for horizontal/vertical springs
-            - 1/√2 ≈ 0.707 for diagonal springs (±45°)
+            Steifigkeit. Wenn None, wird sie automatisch bestimmt:
+            1.0 für horizontal/vertikal, 1/sqrt(2) für diagonal.
         """
         self.id = spring_id
         self.node_a = node_a
@@ -25,22 +24,22 @@ class Spring:
         self.active = True
 
     def get_length(self) -> float:
-        """Calculate the current length of the spring.
+        """Gibt die Länge der Feder zurück.
 
         Returns
         -------
         float
-            Euclidean distance between node_a and node_b.
+            Abstand zwischen den beiden Knoten.
         """
         return np.linalg.norm(self.node_a.pos - self.node_b.pos)
 
     def get_direction_vector(self) -> npt.NDArray[np.float64]:
-        """Calculate the normalized direction vector from node_a to node_b.
+        """Gibt den normierten Richtungsvektor von node_a nach node_b zurück.
 
         Returns
         -------
         npt.NDArray[np.float64]
-            Normalized 2D vector [ex, ey].
+            Einheitsvektor [ex, ey].
         """
         length = self.get_length()
         assert length > 1e-9, f"Spring {self.id} has zero length (degenerate element)."
@@ -49,13 +48,12 @@ class Spring:
         return e_n
 
     def get_stiffness(self) -> float:
-        """Get or calculate spring stiffness based on orientation.
+        """Gibt die Steifigkeit zurück, bestimmt aus der Orientierung.
 
         Returns
         -------
         float
-            1.0 for horizontal/vertical springs.
-            1/√2 ≈ 0.707 for diagonal springs (±45°).
+            1.0 für horizontal/vertikal, 1/sqrt(2) für diagonal.
         """
         if self.k is not None:
             return self.k
@@ -73,17 +71,12 @@ class Spring:
             return 1.0
 
     def get_stiffness_matrix(self) -> npt.NDArray[np.float64]:
-        """Calculate the 4x4 element stiffness matrix in global coordinates.
-
-        Uses the formula from the FEM theory:
-        K_local = k * [[1, -1], [-1, 1]]  (2x2)
-        O = outer(e_n, e_n)                (orientation matrix)
-        K_element = kron(K_local, O)       (4x4)
+        """Berechnet die 4x4 Element-Steifigkeitsmatrix in globalen Koordinaten.
 
         Returns
         -------
         npt.NDArray[np.float64]
-            4x4 stiffness matrix ordered as [node_a_x, node_a_y, node_b_x, node_b_y].
+            4x4 Matrix, Reihenfolge [ax, ay, bx, by].
         """
         k = self.get_stiffness()
         e_n = self.get_direction_vector()
@@ -101,12 +94,12 @@ class Spring:
         return Ko
 
     def __str__(self) -> str:
-        """String representation of the spring."""
+        """Gibt die Feder als lesbaren String zurück."""
         return (f"Spring(id={self.id}, a={self.node_a.id}, b={self.node_b.id}, "
                 f"k={self.get_stiffness():.3f}, active={self.active})")
 
     def __repr__(self) -> str:
-        """Detailed representation of the spring."""
+        """Gibt die Feder als lesbaren String zurück."""
         return self.__str__()
 
 

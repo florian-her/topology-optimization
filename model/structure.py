@@ -5,16 +5,16 @@ from .material import Material
 
 class Structure:
     def __init__(self, width: int, height: int, material: Material | None = None):
-        """Initialisiert eine rechteckige Gitterstruktur aus Knoten und Federn.
+        """Erstellt eine Gitterstruktur mit Knoten und Federn.
 
         Parameters
         ----------
         width : int
-            Anzahl der Knoten in x-Richtung.
+            Anzahl Knoten in x-Richtung.
         height : int
-            Anzahl der Knoten in y-Richtung.
+            Anzahl Knoten in y-Richtung.
         material : Material | None
-            Material der Struktur. Standard: Stahl.
+            Material der Struktur, Standard ist Stahl.
         """
         assert width >= 2, "Breite muss mindestens 2 sein."
         assert height >= 2, "Höhe muss mindestens 2 sein."
@@ -26,15 +26,11 @@ class Structure:
         self.generate_grid()
 
     def _node_id(self, x: int, y: int) -> int:
-        """Gibt die Knoten-ID für Gitterposition (x, y) zurück (row-major)."""
+        """Berechnet die Knoten-ID aus der Gitterposition (x, y)."""
         return y * self.width + x
 
     def generate_grid(self) -> None:
-        """Erzeugt ein 2D-Gitter aus Knoten und Federn.
-
-        Knoten-ID-Schema: id = y * width + x
-        Pro Zelle werden 4 Federn erzeugt: horizontal, vertikal, diagonal \\, diagonal /
-        """
+        """Erzeugt das 2D-Gitter mit allen Knoten und Federn."""
         for y in range(self.height):
             for x in range(self.width):
                 nid = self._node_id(x, y)
@@ -62,12 +58,12 @@ class Structure:
                     spring_id += 1
 
     def remove_node(self, node_id: int) -> None:
-        """Entfernt einen Massenpunkt und alle daran angeschlossenen Federn.
+        """Deaktiviert einen Knoten und alle seine Federn.
 
         Parameters
         ----------
         node_id : int
-            ID des zu entfernenden Knotens.
+            ID des Knotens der entfernt werden soll.
         """
         assert 0 <= node_id < len(self.nodes), f"Ungültige Knoten-ID: {node_id}"
         node = self.nodes[node_id]
@@ -79,11 +75,11 @@ class Structure:
                 spring.active = False
 
     def active_node_count(self) -> int:
-        """Gibt die Anzahl aktiver Knoten zurück."""
+        """Zählt die aktiven Knoten."""
         return sum(1 for n in self.nodes if n.active)
 
     def active_spring_count(self) -> int:
-        """Gibt die Anzahl aktiver Federn zurück."""
+        """Zählt die aktiven Federn."""
         return sum(1 for s in self.springs if s.active)
 
     def __str__(self) -> str:
