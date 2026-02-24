@@ -4,21 +4,21 @@ from model.structure import Structure
 
 
 class StructureValidator:
-    """Prüft strukturelle Integrität: Zusammenhang und Lastpfad."""
+    """Prüft ob die Struktur zusammenhängend bleibt und Lastpfade existieren."""
 
     @staticmethod
     def is_connected(structure: Structure) -> bool:
-        """Prüft ob alle aktiven Knoten zusammenhängend sind.
+        """Prüft ob alle aktiven Knoten miteinander verbunden sind.
 
         Parameters
         ----------
         structure : Structure
-            Die zu prüfende Struktur.
+            Die Struktur.
 
         Returns
         -------
         bool
-            True wenn alle aktiven Knoten verbunden sind, False sonst.
+            True wenn zusammenhängend.
         """
         active_ids = [n.id for n in structure.nodes if n.active]
         if len(active_ids) <= 1:
@@ -35,17 +35,17 @@ class StructureValidator:
 
     @staticmethod
     def has_load_paths(structure: Structure) -> bool:
-        """Prüft ob jeder aktive Kraftknoten einen Pfad zu einem aktiven Lagerknoten hat.
+        """Prüft ob jeder Kraftknoten ein Lager erreichen kann.
 
         Parameters
         ----------
         structure : Structure
-            Die zu prüfende Struktur.
+            Die Struktur.
 
         Returns
         -------
         bool
-            True wenn alle Lastpfade vorhanden sind, False sonst.
+            True wenn alle Kräfte zu einem Lager geleitet werden können.
         """
         G = nx.Graph()
         G.add_nodes_from(n.id for n in structure.nodes if n.active)
@@ -74,23 +74,19 @@ class StructureValidator:
 
     @staticmethod
     def can_remove_node(structure: Structure, node_id: int) -> bool:
-        """Prüft ob ein Knoten entfernt werden kann.
-
-        Kriterien:
-        1. Graph bleibt zusammenhängend (nur aktive Knoten/Federn)
-        2. Alle Lastpfade bleiben erhalten
+        """Prüft ob ein Knoten entfernt werden kann ohne die Struktur zu zerstören.
 
         Parameters
         ----------
         structure : Structure
             Die Struktur.
         node_id : int
-            ID des zu prüfenden Knotens.
+            ID des Knotens.
 
         Returns
         -------
         bool
-            True wenn beide Kriterien erfüllt sind, False sonst.
+            True wenn Zusammenhang und Lastpfade erhalten bleiben.
         """
         node = structure.nodes[node_id]
         assert node.active, f"Knoten {node_id} ist bereits inaktiv."

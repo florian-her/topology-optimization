@@ -7,11 +7,7 @@ from optimizer.validators import StructureValidator
 
 
 class TopologyOptimizer:
-    """Iterativer Topologieoptimierer auf Basis der Verformungsenergie.
-
-    Strategie: Pro Schritt wird der Knoten mit der geringsten Knotenimportanz
-    entfernt, sofern Zusammenhang und Lastpfade erhalten bleiben.
-    """
+    """Optimiert die Struktur indem unwichtige Knoten schrittweise entfernt werden."""
 
     @staticmethod
     def compute_spring_energies(
@@ -20,19 +16,17 @@ class TopologyOptimizer:
     ) -> dict[int, float]:
         """Berechnet die Verformungsenergie jeder aktiven Feder.
 
-        Formel: c^(i,j) = 0.5 * u_e^T @ Ko @ u_e
-
         Parameters
         ----------
         structure : Structure
             Die Struktur.
         u : npt.NDArray[np.float64]
-            Globaler Verschiebungsvektor.
+            Verschiebungsvektor aus der FEM-Lösung.
 
         Returns
         -------
         dict[int, float]
-            Mapping spring_id → Verformungsenergie.
+            Feder-ID → Verformungsenergie.
         """
         energies: dict[int, float] = {}
 
@@ -53,24 +47,19 @@ class TopologyOptimizer:
         structure: Structure,
         u: npt.NDArray[np.float64],
     ) -> dict[int, float]:
-        """Berechnet die Knotenimportanz als Summe der halben Federenergien.
-
-        Formel:
-            c_node = sum(c^(i,j) / 2) für alle angrenzenden aktiven Federn
-
-        Nur freie aktive Knoten (nicht fixiert, nicht belastet) werden bewertet.
+        """Berechnet die Wichtigkeit jedes Knotens aus den Federenergien.
 
         Parameters
         ----------
         structure : Structure
             Die Struktur.
         u : npt.NDArray[np.float64]
-            Globaler Verschiebungsvektor.
+            Verschiebungsvektor aus der FEM-Lösung.
 
         Returns
         -------
         dict[int, float]
-            Mapping node_id → Knotenimportanz (nur optimierbare Knoten).
+            Knoten-ID → Wichtigkeit (nur freie, unbelastete Knoten).
         """
         spring_energies = TopologyOptimizer.compute_spring_energies(structure, u)
 
@@ -99,21 +88,19 @@ class TopologyOptimizer:
         structure: Structure,
         u: npt.NDArray[np.float64],
     ) -> int | None:
-        """Entfernt den Knoten mit der geringsten Knotenimportanz.
-
-        Prüft Zusammenhang und Lastpfade VOR dem Entfernen.
+        """Entfernt den unwichtigsten Knoten, wenn Struktur intakt bleibt.
 
         Parameters
         ----------
         structure : Structure
-            Die Struktur (wird in-place modifiziert).
+            Die Struktur (wird direkt verändert).
         u : npt.NDArray[np.float64]
-            Globaler Verschiebungsvektor der aktuellen FEM-Lösung.
+            Verschiebungsvektor aus der FEM-Lösung.
 
         Returns
         -------
         int | None
-            node_id des entfernten Knotens, oder None wenn keiner entfernt werden kann.
+            ID des entfernten Knotens, oder None falls keiner entfernbar.
         """
         node_energies = TopologyOptimizer.compute_node_energies(structure, u)
 
@@ -134,23 +121,19 @@ class TopologyOptimizer:
         structure: Structure,
         mass_fraction: float,
     ) -> list[float]:
-        """Optimiert die Struktur bis zum Ziel-Massenanteil.
-
-        Schleife:
-        FEM lösen → Knotenimportanzen berechnen → schwächsten entfernbaren
-        Knoten deaktivieren → wiederholen bis Ist-Masse ≤ Soll-Masse.
+        """Führt die Optimierung durch bis der Massenanteil erreicht ist.
 
         Parameters
         ----------
         structure : Structure
-            Die Ausgangsstruktur (wird in-place modifiziert).
+            Die Struktur (wird direkt verändert).
         mass_fraction : float
-            Ziel-Massenanteil [0, 1]. 0.5 = 50% der Knoten behalten.
+            Anteil der Knoten die übrig bleiben sollen, z.B. 0.5 = 50%.
 
         Returns
         -------
         list[float]
-            Gesamt-Verformungsenergie nach jedem Schritt.
+            Gesamtenergie nach jedem Schritt.
         """
         assert 0.0 < mass_fraction < 1.0, "mass_fraction muss zwischen 0 und 1 liegen."
 
