@@ -18,13 +18,13 @@ _DEFAULT_MATERIAL_NAMES = {m.name for m in Material.defaults()}
 
 
 def _has_forces(structure: Structure) -> bool:
-    """Prüft ob Kräfte gesetzt sind."""
-    return any(n.force_x != 0 or n.force_y != 0 for n in structure.nodes)
+    """Prüft ob aktive Knoten mit Kräften vorhanden sind."""
+    return any(n.force_x != 0 or n.force_y != 0 for n in structure.nodes if n.active)
 
 
 def _has_bcs(structure: Structure) -> bool:
-    """Prüft ob Lager gesetzt sind."""
-    return any(n.fix_x or n.fix_y for n in structure.nodes)
+    """Prüft ob aktive Knoten mit Lagern vorhanden sind."""
+    return any(n.fix_x or n.fix_y for n in structure.nodes if n.active)
 
 
 def _apply_default_bcs(structure: Structure) -> None:
@@ -72,14 +72,13 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
 
     with col_ctrl:
         # --- Material-Selektor ---
-        st.subheader("Material")
         mat_names = [m.name for m in st.session_state.materials]
         current_idx = next(
             (i for i, m in enumerate(st.session_state.materials) if m.name == s.material.name), 0
         )
-        sel_name = st.selectbox("Material auswählen", mat_names, index=current_idx)
+        sel_name = st.selectbox("Material", mat_names, index=current_idx)
         sel_mat = next(m for m in st.session_state.materials if m.name == sel_name)
-        st.caption(f"E = {sel_mat.E} GPa | σ_y = {sel_mat.yield_strength} MPa | ρ = {sel_mat.density} kg/m³")
+        st.caption(f"E={sel_mat.E} GPa · σ={sel_mat.yield_strength} MPa · ρ={sel_mat.density} kg/m³")
 
         if sel_mat.name != s.material.name:
             s.material = sel_mat
@@ -318,7 +317,6 @@ def main():
 
     if st.sidebar.button("Struktur initialisieren"):
         s = Structure(width, height)
-        _apply_default_bcs(s)
         st.session_state.structure = s
         st.session_state.structure_base = deepcopy(s)
         st.session_state.u = None

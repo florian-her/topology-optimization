@@ -102,26 +102,73 @@ class TopologyOptimizer:
         int | None
             ID des entfernten Knotens, oder None falls keiner entfernbar.
         """
-        node_energies = TopologyOptimizer.compute_node_energies(structure, u)
+        removed = TopologyOptimizer.optimization_batch(structure, u, batch_size=1)
+        return None if removed == 0 else -1
 
+    @staticmethod
+    def optimization_batch(
+        structure: Structure,
+        u: npt.NDArray[np.float64],
+        batch_size: int,
+    ) -> int:
+        """Entfernt bis zu batch_size Knoten auf Basis einer FEM-Lösung.
+
+        Blattknoten (Grad ≤ 1) werden ohne Zusammenhangscheck direkt entfernt.
+        Alle anderen durchlaufen den vollen can_remove_node-Check.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur (wird direkt verändert).
+        u : npt.NDArray[np.float64]
+            Verschiebungsvektor aus der FEM-Lösung.
+        batch_size : int
+            Maximale Anzahl zu entfernender Knoten.
+
+        Returns
+        -------
+        int
+            Anzahl tatsächlich entfernter Knoten.
+        """
+        node_energies = TopologyOptimizer.compute_node_energies(structure, u)
         if not node_energies:
-            return None
+            return 0
+
+        # Knotengrad einmalig berechnen (Anzahl aktiver Federn je Knoten)
+        degree: dict[int, int] = {}
+        for sp in structure.springs:
+            if sp.active:
+                degree[sp.node_a.id] = degree.get(sp.node_a.id, 0) + 1
+                degree[sp.node_b.id] = degree.get(sp.node_b.id, 0) + 1
 
         sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
+        removed = 0
 
         for node_id, _ in sorted_nodes:
-            if StructureValidator.can_remove_node(structure, node_id):
-                structure.remove_node(node_id)
-                return node_id
+            if removed >= batch_size:
+                break
 
-        return None
+            if degree.get(node_id, 0) <= 1:
+                # Blattknoten: topologisch immer sicher zu entfernen
+                structure.remove_node(node_id)
+                removed += 1
+            elif StructureValidator.can_remove_node(structure, node_id):
+                structure.remove_node(node_id)
+                removed += 1
+
+        return removed
 
     @staticmethod
     def run(
         structure: Structure,
         mass_fraction: float,
+        batch_fraction: float = 0.05,
     ) -> list[float]:
         """Führt die Optimierung durch bis der Massenanteil erreicht ist.
+
+        Pro FEM-Lösung werden bis zu batch_fraction * aktive_Knoten Knoten
+        auf einmal entfernt. Das reduziert die Anzahl teurer FEM-Solves
+        drastisch bei moderatem Qualitätsverlust.
 
         Parameters
         ----------
@@ -129,13 +176,16 @@ class TopologyOptimizer:
             Die Struktur (wird direkt verändert).
         mass_fraction : float
             Anteil der Knoten die übrig bleiben sollen, z.B. 0.5 = 50%.
+        batch_fraction : float, optional
+            Anteil aktiver Knoten der pro FEM-Solve entfernt wird (Standard 5%).
 
         Returns
         -------
         list[float]
-            Gesamtenergie nach jedem Schritt.
+            Gesamtenergie nach jedem FEM-Solve.
         """
         assert 0.0 < mass_fraction < 1.0, "mass_fraction muss zwischen 0 und 1 liegen."
+        assert 0.0 < batch_fraction <= 1.0, "batch_fraction muss zwischen 0 und 1 liegen."
 
         total_nodes = len(structure.nodes)
         target_nodes = max(2, int(total_nodes * mass_fraction))
@@ -148,11 +198,14 @@ class TopologyOptimizer:
                 break
 
             spring_energies = TopologyOptimizer.compute_spring_energies(structure, u)
-            total_energy = sum(spring_energies.values())
-            energy_history.append(total_energy)
+            energy_history.append(sum(spring_energies.values()))
 
-            removed = TopologyOptimizer.optimization_step(structure, u)
-            if removed is None:
+            n_active = structure.active_node_count()
+            batch_size = max(1, int(n_active * batch_fraction))
+            batch_size = min(batch_size, n_active - target_nodes)
+
+            removed = TopologyOptimizer.optimization_batch(structure, u, batch_size)
+            if removed == 0:
                 break
 
         return energy_history
@@ -177,4 +230,5 @@ if __name__ == "__main__":
 
     history = TopologyOptimizer.run(s, mass_fraction=0.5)
     print(f"\nAktive Knoten nach Optimierung: {s.active_node_count()} / {len(s.nodes)}")
+    print(f"FEM-Solves: {len(history)} (ohne Batch wären es {len(s.nodes) // 2})")
     print(f"Energie-Verlauf: {[f'{e:.4f}' for e in history]}")
