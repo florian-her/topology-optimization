@@ -7,9 +7,9 @@ from model.structure import Structure
 
 _N_BINS = 20
 _COLORSCALE = [
-    [0.0, "#1565C0"],
-    [0.5, "#6A1B9A"],
-    [1.0, "#C62828"],
+    [0.0, "#FF0000"],
+    [0.5, "#FF3300"],
+    [1.0, "#FF6600"],
 ]
 
 
