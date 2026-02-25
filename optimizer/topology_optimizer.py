@@ -29,6 +29,7 @@ class TopologyOptimizer:
             Feder-ID → Verformungsenergie.
         """
         energies: dict[int, float] = {}
+        E_factor = structure.material.E / 210.0
 
         for spring in structure.springs:
             if not spring.active:
@@ -37,7 +38,7 @@ class TopologyOptimizer:
             i = spring.node_a.id
             j = spring.node_b.id
             u_e = np.array([u[2 * i], u[2 * i + 1], u[2 * j], u[2 * j + 1]])
-            Ko = spring.get_stiffness_matrix()
+            Ko = spring.get_stiffness_matrix() * E_factor
             energies[spring.id] = 0.5 * float(u_e @ Ko @ u_e)
 
         return energies
@@ -194,16 +195,47 @@ class TopologyOptimizer:
         return removed
 
     @staticmethod
+    def _adaptive_batch_size(
+        progress: float,
+        n_active: int,
+    ) -> int:
+        """Berechnet die Batch-Größe abhängig vom Fortschritt.
+
+        Parameters
+        ----------
+        progress : float
+            Fortschritt der Optimierung (0.0 = Start, 1.0 = Ziel erreicht).
+        n_active : int
+            Aktuell aktive Knoten.
+
+        Returns
+        -------
+        int
+            Anzahl Knoten die in diesem Schritt entfernt werden.
+        """
+        if progress < 0.5:
+            frac = 0.05
+        elif progress < 0.75:
+            frac = 0.02
+        elif progress < 0.90:
+            frac = 0.005
+        else:
+            frac = 0.0
+
+        if frac > 0.0:
+            return max(1, int(n_active * frac))
+        return 1
+
+    @staticmethod
     def run(
         structure: Structure,
         mass_fraction: float,
-        batch_fraction: float = 0.05,
     ) -> list[float]:
         """Führt die Optimierung durch bis der Massenanteil erreicht ist.
 
-        Pro FEM-Lösung werden bis zu batch_fraction * aktive_Knoten Knoten
-        auf einmal entfernt. Das reduziert die Anzahl teurer FEM-Solves
-        drastisch bei moderatem Qualitätsverlust.
+        Verwendet adaptive Batch-Größen: am Anfang werden mehr Knoten
+        pro FEM-Solve entfernt, gegen Ende wird einzeln entfernt
+        für maximale Genauigkeit.
 
         Parameters
         ----------
@@ -211,8 +243,6 @@ class TopologyOptimizer:
             Die Struktur (wird direkt verändert).
         mass_fraction : float
             Anteil der Knoten die übrig bleiben sollen, z.B. 0.5 = 50%.
-        batch_fraction : float, optional
-            Anteil aktiver Knoten der pro FEM-Solve entfernt wird (Standard 5%).
 
         Returns
         -------
@@ -220,10 +250,10 @@ class TopologyOptimizer:
             Gesamtenergie nach jedem FEM-Solve.
         """
         assert 0.0 < mass_fraction < 1.0, "mass_fraction muss zwischen 0 und 1 liegen."
-        assert 0.0 < batch_fraction <= 1.0, "batch_fraction muss zwischen 0 und 1 liegen."
 
         total_nodes = len(structure.nodes)
         target_nodes = max(2, int(total_nodes * mass_fraction))
+        nodes_to_remove = total_nodes - target_nodes
 
         energy_history: list[float] = []
 
@@ -236,7 +266,10 @@ class TopologyOptimizer:
             energy_history.append(sum(spring_energies.values()))
 
             n_active = structure.active_node_count()
-            batch_size = max(1, int(n_active * batch_fraction))
+            removed_so_far = total_nodes - n_active
+            progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+
+            batch_size = TopologyOptimizer._adaptive_batch_size(progress, n_active)
             batch_size = min(batch_size, n_active - target_nodes)
 
             removed = TopologyOptimizer.optimization_batch(structure, u, batch_size)

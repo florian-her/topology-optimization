@@ -40,7 +40,7 @@ class TestGlobalKAssembly(unittest.TestCase):
     def test_symmetry(self):
         # Nachbedingung: K_g muss symmetrisch sein
         K_g = assemble_global_K(self.s)
-        self.assertTrue(np.allclose(K_g, K_g.T), "K_g ist nicht symmetrisch")
+        self.assertTrue(np.allclose(K_g.toarray(), K_g.T.toarray()), "K_g ist nicht symmetrisch")
 
     def test_spring_count(self):
         # 2x2-Gitter: 2 horiz + 2 vert + 2 diag\ + 2 diag/ = ... wait
