@@ -159,14 +159,28 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                         )
                         st.session_state.status_msg = "Originalstruktur wiederhergestellt"
                     else:
-                        with st.spinner(f"Optimiere bis {int(mass_fraction * 100)}% Masse …"):
-                            history = TopologyOptimizer.run(s_fresh, mass_fraction=mass_fraction)
-                            st.session_state.energy_history.extend(history)
-                            u = solve_structure(s_fresh)
-                            st.session_state.u = u
-                            st.session_state.stresses = (
-                                TopologyOptimizer.compute_spring_stresses(s_fresh, u) if u is not None else None
+                        bar = st.progress(0, text="Optimierung startet ...")
+                        status = st.empty()
+
+                        def _on_progress(frac: float, n_active: int, n_target: int) -> None:
+                            pct = min(int(frac * 100), 100)
+                            bar.progress(
+                                frac,
+                                text=f"Optimierung: {pct}% · {n_active} → {n_target} Knoten",
                             )
+
+                        history = TopologyOptimizer.run(
+                            s_fresh,
+                            mass_fraction=mass_fraction,
+                            on_progress=_on_progress,
+                        )
+                        bar.progress(1.0, text="Optimierung abgeschlossen")
+                        st.session_state.energy_history.extend(history)
+                        u = solve_structure(s_fresh)
+                        st.session_state.u = u
+                        st.session_state.stresses = (
+                            TopologyOptimizer.compute_spring_stresses(s_fresh, u) if u is not None else None
+                        )
                         st.session_state.status_msg = (
                             f"{len(history)} Schritte · {s_fresh.active_node_count()} Knoten aktiv"
                         )

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import numpy as np
 import numpy.typing as npt
 
@@ -230,6 +232,7 @@ class TopologyOptimizer:
     def run(
         structure: Structure,
         mass_fraction: float,
+        on_progress: Callable[[float, int, int], None] | None = None,
     ) -> list[float]:
         """Führt die Optimierung durch bis der Massenanteil erreicht ist.
 
@@ -243,6 +246,8 @@ class TopologyOptimizer:
             Die Struktur (wird direkt verändert).
         mass_fraction : float
             Anteil der Knoten die übrig bleiben sollen, z.B. 0.5 = 50%.
+        on_progress : Callable[[float, int, int], None] | None
+            Optionaler Callback(fortschritt, aktive_knoten, ziel_knoten).
 
         Returns
         -------
@@ -256,6 +261,9 @@ class TopologyOptimizer:
         nodes_to_remove = total_nodes - target_nodes
 
         energy_history: list[float] = []
+
+        if on_progress:
+            on_progress(0.0, total_nodes, target_nodes)
 
         while structure.active_node_count() > target_nodes:
             u = solve_structure(structure)
@@ -275,6 +283,12 @@ class TopologyOptimizer:
             removed = TopologyOptimizer.optimization_batch(structure, u, batch_size)
             if removed == 0:
                 break
+
+            n_active = structure.active_node_count()
+            removed_so_far = total_nodes - n_active
+            progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+            if on_progress:
+                on_progress(progress, n_active, target_nodes)
 
         return energy_history
 
