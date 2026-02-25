@@ -43,6 +43,41 @@ class TopologyOptimizer:
         return energies
 
     @staticmethod
+    def compute_spring_stresses(
+        structure: Structure,
+        u: npt.NDArray[np.float64],
+    ) -> dict[int, float]:
+        """Berechnet die Normalspannung jeder aktiven Feder in MPa.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur.
+        u : npt.NDArray[np.float64]
+            Verschiebungsvektor aus der FEM-Lösung.
+
+        Returns
+        -------
+        dict[int, float]
+            Feder-ID → |σ| in MPa  (σ = E · Δl / l₀).
+        """
+        E_MPa = structure.material.E * 1000.0
+        stresses: dict[int, float] = {}
+
+        for spring in structure.springs:
+            if not spring.active:
+                continue
+            i   = spring.node_a.id
+            j   = spring.node_b.id
+            e_n = spring.get_direction_vector()
+            l0  = spring.get_length()
+            du  = np.array([u[2 * j] - u[2 * i], u[2 * j + 1] - u[2 * i + 1]])
+            eps = float(np.dot(e_n, du)) / l0
+            stresses[spring.id] = abs(E_MPa * eps)
+
+        return stresses
+
+    @staticmethod
     def compute_node_energies(
         structure: Structure,
         u: npt.NDArray[np.float64],

@@ -49,7 +49,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
     with col_plot:
         fig = plot_structure(
             s,
-            energies=st.session_state.energies,
+            energies=st.session_state.stresses,
             scale_factor=scale_factor,
             highlight_node_id=st.session_state.selected_node_id,
         )
@@ -85,7 +85,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
             if st.session_state.structure_base:
                 st.session_state.structure_base.material = sel_mat
             st.session_state.u = None
-            st.session_state.energies = None
+            st.session_state.stresses = None
 
         st.markdown("---")
 
@@ -108,7 +108,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                     selected_node.force_y = force_y
                     st.session_state.structure_base = deepcopy(st.session_state.structure)
                     st.session_state.u = None
-                    st.session_state.energies = None
+                    st.session_state.stresses = None
                     st.rerun()
 
         st.markdown("---")
@@ -133,9 +133,9 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                         st.error("FEM konnte nicht gelöst werden.")
                     else:
                         st.session_state.u = u
-                        st.session_state.energies = TopologyOptimizer.compute_spring_energies(s, u)
-                        total_e = sum(st.session_state.energies.values())
-                        st.session_state.status_msg = f"Energie: {total_e:.4f}"
+                        st.session_state.stresses = TopologyOptimizer.compute_spring_stresses(s, u)
+                        max_s = max(st.session_state.stresses.values()) if st.session_state.stresses else 0.0
+                        st.session_state.status_msg = f"Max. Spannung: {max_s:.2f} MPa"
                         st.rerun()
             except Exception as e:
                 st.error(f"FEM-Fehler: {e}")
@@ -154,8 +154,8 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                     if mass_fraction >= 1.0:
                         u = solve_structure(s_fresh)
                         st.session_state.u = u
-                        st.session_state.energies = (
-                            TopologyOptimizer.compute_spring_energies(s_fresh, u) if u is not None else None
+                        st.session_state.stresses = (
+                            TopologyOptimizer.compute_spring_stresses(s_fresh, u) if u is not None else None
                         )
                         st.session_state.status_msg = "Originalstruktur wiederhergestellt"
                     else:
@@ -164,8 +164,8 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                             st.session_state.energy_history.extend(history)
                             u = solve_structure(s_fresh)
                             st.session_state.u = u
-                            st.session_state.energies = (
-                                TopologyOptimizer.compute_spring_energies(s_fresh, u) if u is not None else None
+                            st.session_state.stresses = (
+                                TopologyOptimizer.compute_spring_stresses(s_fresh, u) if u is not None else None
                             )
                         st.session_state.status_msg = (
                             f"{len(history)} Schritte · {s_fresh.active_node_count()} Knoten aktiv"
@@ -180,6 +180,67 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
 
         if st.session_state.energy_history:
             st.line_chart(st.session_state.energy_history)
+
+
+@st.fragment
+def _tab_gif(s: Structure) -> None:
+    st.header("GIF-Export")
+
+    col1, col2, col3, col4 = st.columns(4)
+    start_pct = col1.slider("Start (%)", 30, 100, 100, 5, key="gif_start")
+    end_pct   = col2.slider("End (%)",    5,  95,  30, 5, key="gif_end")
+    n_frames  = col3.slider("Frames",     2,  20,   8, 1, key="gif_frames")
+    fps       = col4.slider("FPS",        1,  10,   2, 1, key="gif_fps")
+
+    if end_pct >= start_pct:
+        st.warning("End-% muss kleiner als Start-% sein.")
+        return
+
+    if st.button("GIF erstellen", use_container_width=True):
+        if not _has_bcs(st.session_state.structure_base):
+            st.warning("Keine Lagerung definiert.")
+        elif not _has_forces(st.session_state.structure_base):
+            st.warning("Keine Kräfte definiert.")
+        else:
+            try:
+                s_gif = deepcopy(st.session_state.structure_base)
+                start_frac = start_pct / 100.0
+                end_frac   = end_pct   / 100.0
+                mass_fracs = [
+                    start_frac + (end_frac - start_frac) * i / (n_frames - 1)
+                    for i in range(n_frames)
+                ]
+
+                png_frames = []
+                bar = st.progress(0, f"Frame 0 / {n_frames}")
+                for idx, target_frac in enumerate(mass_fracs):
+                    if target_frac < 1.0:
+                        TopologyOptimizer.run(s_gif, mass_fraction=target_frac)
+                    u = solve_structure(s_gif)
+                    energies = (
+                        TopologyOptimizer.compute_spring_stresses(s_gif, u)
+                        if u is not None else None
+                    )
+                    fig = plot_structure(s_gif, energies=energies, scale_factor=0)
+                    png_frames.append(
+                        fig.to_image(format="png", width=900, height=550, scale=1.5)
+                    )
+                    bar.progress((idx + 1) / n_frames, f"Frame {idx + 1} / {n_frames}")
+
+                st.session_state.gif_bytes = IOHandler.to_gif_bytes(png_frames, fps=fps)
+                st.success(f"GIF erstellt: {n_frames} Frames")
+            except Exception as e:
+                st.error(f"GIF-Fehler: {e}")
+
+    if st.session_state.get("gif_bytes"):
+        st.download_button(
+            "GIF herunterladen",
+            st.session_state.gif_bytes,
+            file_name=f"optimierung_{s.width}x{s.height}.gif",
+            mime="image/gif",
+            use_container_width=True,
+        )
+        st.image(st.session_state.gif_bytes)
 
 
 def _tab_speichern(s: Structure, scale_factor: float) -> None:
@@ -199,7 +260,7 @@ def _tab_speichern(s: Structure, scale_factor: float) -> None:
 
         fig_export = plot_structure(
             s,
-            energies=st.session_state.energies,
+            energies=st.session_state.stresses,
             scale_factor=scale_factor,
         )
         st.download_button(
@@ -228,7 +289,7 @@ def _tab_speichern(s: Structure, scale_factor: float) -> None:
                 st.session_state.structure = s_loaded
                 st.session_state.structure_base = deepcopy(s_loaded)
                 st.session_state.u = None
-                st.session_state.energies = None
+                st.session_state.stresses = None
                 st.session_state.energy_history = []
                 st.session_state.last_uploaded = uploaded.name
                 st.session_state.selected_node_id = None
@@ -294,8 +355,8 @@ def main():
         st.session_state.structure = None
     if "u" not in st.session_state:
         st.session_state.u = None
-    if "energies" not in st.session_state:
-        st.session_state.energies = None
+    if "stresses" not in st.session_state:
+        st.session_state.stresses = None
     if "energy_history" not in st.session_state:
         st.session_state.energy_history = []
     if "status_msg" not in st.session_state:
@@ -306,6 +367,8 @@ def main():
         st.session_state.last_uploaded = None
     if "materials" not in st.session_state:
         st.session_state.materials = Material.defaults()
+    if "gif_bytes" not in st.session_state:
+        st.session_state.gif_bytes = None
     if "selected_node_id" not in st.session_state:
         st.session_state.selected_node_id = None
 
@@ -320,7 +383,7 @@ def main():
         st.session_state.structure = s
         st.session_state.structure_base = deepcopy(s)
         st.session_state.u = None
-        st.session_state.energies = None
+        st.session_state.stresses = None
         st.session_state.energy_history = []
         st.session_state.selected_node_id = None
 
@@ -329,7 +392,7 @@ def main():
             _apply_default_bcs(st.session_state.structure)
             st.session_state.structure_base = deepcopy(st.session_state.structure)
             st.session_state.u = None
-            st.session_state.energies = None
+            st.session_state.stresses = None
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
@@ -340,7 +403,9 @@ def main():
     mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
 
     # --- Tabs ---
-    tab_struct, tab_io, tab_mat = st.tabs(["Struktur & Analyse", "Speichern / Laden", "Materialien"])
+    tab_struct, tab_io, tab_gif, tab_mat = st.tabs(
+        ["Struktur & Analyse", "Speichern / Laden", "GIF-Export", "Materialien"]
+    )
 
     with tab_mat:
         _tab_materialien()
@@ -358,6 +423,13 @@ def main():
             st.info("Struktur initialisieren (Sidebar links).")
         else:
             _tab_speichern(s, scale_factor)
+
+    with tab_gif:
+        s = st.session_state.structure
+        if not s:
+            st.info("Struktur initialisieren (Sidebar links).")
+        else:
+            _tab_gif(s)
 
 
 if __name__ == "__main__":

@@ -157,6 +157,37 @@ class IOHandler:
         return structure
 
     @staticmethod
+    def to_gif_bytes(png_frames: list[bytes], fps: int = 2) -> bytes:
+        """Kombiniert PNG-Frames zu einem animierten GIF.
+
+        Parameters
+        ----------
+        png_frames : list[bytes]
+            Liste von PNG-Bilddaten.
+        fps : int, optional
+            Bilder pro Sekunde (Standard: 2).
+
+        Returns
+        -------
+        bytes
+            GIF-Daten als Bytes.
+        """
+        import io as _io
+        from PIL import Image
+
+        duration = max(100, 1000 // fps)
+        imgs_rgb = [Image.open(_io.BytesIO(b)).convert("RGB") for b in png_frames]
+        imgs_p = [img.quantize(colors=256) for img in imgs_rgb]
+
+        buf = _io.BytesIO()
+        imgs_p[0].save(
+            buf, format="GIF", save_all=True,
+            append_images=imgs_p[1:],
+            duration=duration, loop=0, optimize=False,
+        )
+        return buf.getvalue()
+
+    @staticmethod
     def to_json_bytes(structure: Structure) -> bytes:
         """Wandelt eine Struktur in JSON-Bytes um (z.B. für Download).
 
