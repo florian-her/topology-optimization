@@ -72,8 +72,8 @@ def plot_structure(
     ix, iy = [], []
     for sp in structure.springs:
         if not sp.active:
-            ix += [_px(sp.node_a), _px(sp.node_b), None]
-            iy += [_py(sp.node_a), _py(sp.node_b), None]
+            ix += [sp.node_a.x, sp.node_b.x, None]
+            iy += [sp.node_a.y, sp.node_b.y, None]
     if ix:
         fig.add_trace(go.Scatter(
             x=ix, y=iy, mode="lines",

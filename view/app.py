@@ -39,8 +39,11 @@ def _apply_default_bcs(structure: Structure) -> None:
     structure.nodes[nid].fix_y = 1
 
     mid_x = structure.width // 2
-    nid = structure._node_id(mid_x, bottom)
-    structure.nodes[nid].force_y = -0.5
+    force_nid = structure._node_id(mid_x, bottom)
+    force_node = structure.nodes[force_nid]
+    if force_node.fix_x or force_node.fix_y:
+        force_nid = structure._node_id(mid_x, 0)
+    structure.nodes[force_nid].force_y = -0.5
 
 
 def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> None:
@@ -196,6 +199,15 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
             st.line_chart(st.session_state.energy_history)
 
 
+def _structure_key(s: Structure) -> tuple:
+    """Schlüssel zur Erkennung von Änderungen der Basisstruktur."""
+    return (
+        s.width, s.height, s.material.name, s.active_node_count(),
+        round(sum(n.force_x + n.force_y for n in s.nodes if n.active), 4),
+        sum(n.fix_x + n.fix_y for n in s.nodes if n.active),
+    )
+
+
 @st.fragment
 def _tab_gif(s: Structure) -> None:
     st.header("GIF-Export")
@@ -217,7 +229,17 @@ def _tab_gif(s: Structure) -> None:
             st.warning("Keine Kräfte definiert.")
         else:
             try:
-                s_gif = deepcopy(st.session_state.structure_base)
+                base = st.session_state.structure_base
+                cur_key = _structure_key(base)
+
+                if st.session_state.gif_base_key != cur_key:
+                    st.session_state.gif_checkpoints = {}
+                    st.session_state.gif_png_cache = {}
+                    st.session_state.gif_base_key = cur_key
+
+                checkpoints: dict[float, Structure] = st.session_state.gif_checkpoints
+                png_cache: dict[float, bytes] = st.session_state.gif_png_cache
+
                 start_frac = start_pct / 100.0
                 end_frac   = end_pct   / 100.0
                 mass_fracs = [
@@ -225,24 +247,53 @@ def _tab_gif(s: Structure) -> None:
                     for i in range(n_frames)
                 ]
 
+                # Besten Startpunkt aus Cache laden (Checkpoint >= start_frac)
+                above = {k: v for k, v in checkpoints.items() if k >= start_frac - 0.01}
+                if above:
+                    best_k = min(above)
+                    s_gif = deepcopy(above[best_k])
+                    if best_k > start_frac + 0.02 and start_frac < 1.0:
+                        TopologyOptimizer.run(s_gif, mass_fraction=start_frac)
+                else:
+                    s_gif = deepcopy(base)
+                    if start_frac < 1.0:
+                        TopologyOptimizer.run(s_gif, mass_fraction=start_frac)
+                checkpoints[round(start_frac, 2)] = deepcopy(s_gif)
+
                 png_frames = []
+                cached_count = 0
                 bar = st.progress(0, f"Frame 0 / {n_frames}")
                 for idx, target_frac in enumerate(mass_fracs):
-                    if target_frac < 1.0:
-                        TopologyOptimizer.run(s_gif, mass_fraction=target_frac)
-                    u = solve_structure(s_gif)
-                    energies = (
-                        TopologyOptimizer.compute_spring_stresses(s_gif, u)
-                        if u is not None else None
-                    )
-                    fig = plot_structure(s_gif, energies=energies, scale_factor=0)
-                    png_frames.append(
-                        fig.to_image(format="png", width=900, height=550, scale=1.5)
-                    )
+                    rounded = round(target_frac, 2)
+                    if rounded in png_cache:
+                        png_frames.append(png_cache[rounded])
+                        cached_count += 1
+                    else:
+                        if rounded in checkpoints:
+                            s_gif = deepcopy(checkpoints[rounded])
+                        else:
+                            if target_frac < 1.0:
+                                TopologyOptimizer.run(s_gif, mass_fraction=target_frac)
+                            checkpoints[rounded] = deepcopy(s_gif)
+
+                        u = solve_structure(s_gif)
+                        energies = (
+                            TopologyOptimizer.compute_spring_stresses(s_gif, u)
+                            if u is not None else None
+                        )
+                        fig = plot_structure(s_gif, energies=energies, scale_factor=0)
+                        png = fig.to_image(format="png", width=900, height=550, scale=1.5)
+                        png_cache[rounded] = png
+                        png_frames.append(png)
                     bar.progress((idx + 1) / n_frames, f"Frame {idx + 1} / {n_frames}")
 
+                st.session_state.gif_checkpoints = checkpoints
+                st.session_state.gif_png_cache = png_cache
                 st.session_state.gif_bytes = IOHandler.to_gif_bytes(png_frames, fps=fps)
-                st.success(f"GIF erstellt: {n_frames} Frames")
+                msg = f"GIF erstellt: {n_frames} Frames"
+                if cached_count:
+                    msg += f" ({cached_count} aus Cache)"
+                st.success(msg)
             except Exception as e:
                 st.error(f"GIF-Fehler: {e}")
 
@@ -383,6 +434,12 @@ def main():
         st.session_state.materials = Material.defaults()
     if "gif_bytes" not in st.session_state:
         st.session_state.gif_bytes = None
+    if "gif_checkpoints" not in st.session_state:
+        st.session_state.gif_checkpoints = {}
+    if "gif_png_cache" not in st.session_state:
+        st.session_state.gif_png_cache = {}
+    if "gif_base_key" not in st.session_state:
+        st.session_state.gif_base_key = None
     if "selected_node_id" not in st.session_state:
         st.session_state.selected_node_id = None
 
@@ -407,6 +464,7 @@ def main():
             st.session_state.structure_base = deepcopy(st.session_state.structure)
             st.session_state.u = None
             st.session_state.stresses = None
+            st.session_state.energy_history = []
 
     st.sidebar.markdown("---")
     st.sidebar.header("Darstellung")
