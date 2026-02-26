@@ -210,6 +210,31 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
         if st.session_state.energy_history:
             st.line_chart(st.session_state.energy_history)
 
+        u = st.session_state.u
+        if u is not None:
+            import numpy as np
+            with st.expander("Ergebnisbericht", expanded=False):
+                n_active = s.active_node_count()
+                n_total = len(s.nodes)
+                reduction = (1 - n_active / n_total) * 100
+
+                displacements = [
+                    np.sqrt(u[2 * n.id] ** 2 + u[2 * n.id + 1] ** 2)
+                    for n in s.nodes if n.active
+                ]
+                max_disp = max(displacements) if displacements else 0.0
+
+                compliance = float(np.dot(u, u))
+
+                stresses = st.session_state.stresses
+                max_stress = max(stresses.values()) if stresses else 0.0
+
+                c1, c2 = st.columns(2)
+                c1.metric("Massenreduktion", f"{reduction:.1f} %")
+                c2.metric("Max. Verschiebung", f"{max_disp:.4f}")
+                c1.metric("Compliance (u·u)", f"{compliance:.4f}")
+                c2.metric("Max. Spannung", f"{max_stress:.2f} MPa")
+
 
 def _structure_key(s: Structure) -> tuple:
     """Schlüssel zur Erkennung von Änderungen der Basisstruktur."""
