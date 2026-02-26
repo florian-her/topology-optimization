@@ -11,6 +11,7 @@ from solver.fem_solver import solve_structure
 from optimizer.topology_optimizer import TopologyOptimizer
 from view.visualization import plot_structure
 from persistence.io_handler import IOHandler
+from view.jokes import get_shuffled_jokes
 
 st.set_page_config(page_title="TopoOptimizer 2D", layout="wide")
 
@@ -159,8 +160,13 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                         )
                         st.session_state.status_msg = "Originalstruktur wiederhergestellt"
                     else:
+                        import time as _time
+
                         bar = st.progress(0, text="Optimierung startet ...")
-                        status = st.empty()
+                        joke_area = st.empty()
+                        jokes = get_shuffled_jokes()
+                        joke_state = {"idx": 0, "last_t": _time.monotonic()}
+                        joke_area.info(jokes[0])
 
                         def _on_progress(frac: float, n_active: int, n_target: int) -> None:
                             pct = min(int(frac * 100), 100)
@@ -168,6 +174,11 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                                 frac,
                                 text=f"Optimierung: {pct}% · {n_active} → {n_target} Knoten",
                             )
+                            now = _time.monotonic()
+                            if now - joke_state["last_t"] >= 10:
+                                joke_state["idx"] = (joke_state["idx"] + 1) % len(jokes)
+                                joke_state["last_t"] = now
+                                joke_area.info(jokes[joke_state["idx"]])
 
                         history = TopologyOptimizer.run(
                             s_fresh,
@@ -175,6 +186,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                             on_progress=_on_progress,
                         )
                         bar.progress(1.0, text="Optimierung abgeschlossen")
+                        joke_area.empty()
                         st.session_state.energy_history.extend(history)
                         u = solve_structure(s_fresh)
                         st.session_state.u = u
