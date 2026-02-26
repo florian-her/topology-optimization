@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import numpy.typing as npt
 import scipy.sparse
@@ -98,13 +100,16 @@ def solve(
     K: scipy.sparse.csr_matrix,
     F: npt.NDArray[np.float64],
     u_fixed_idx: list[int],
-    eps: float = 1e-9,
+    residual_tol: float = 0.01,
 ) -> npt.NDArray[np.float64] | None:
     """Löst K*u = F auf dem reduzierten System (freie DOFs).
 
     Statt Zeilen/Spalten zu nullen wird das System auf die freien
     Freiheitsgrade reduziert und mit dem Sparse-Solver gelöst.
     Das ist äquivalent, aber deutlich effizienter für große Matrizen.
+
+    Gibt None zurück wenn die Matrix singulär ist (Mechanismus)
+    oder das relative Residuum zu groß (schlecht konditioniert).
 
     Parameters
     ----------
@@ -114,8 +119,8 @@ def solve(
         Kraftvektor.
     u_fixed_idx : list[int]
         Fixierte Freiheitsgrade (u=0).
-    eps : float, optional
-        Regularisierung bei singulärer Matrix.
+    residual_tol : float, optional
+        Maximales relatives Residuum ||Ku-F||/||F||.
 
     Returns
     -------
@@ -133,24 +138,25 @@ def solve(
     F_f = F[free]
 
     try:
-        u_free = scipy.sparse.linalg.spsolve(K_ff, F_f)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("error", category=scipy.sparse.linalg.MatrixRankWarning)
+            u_free = scipy.sparse.linalg.spsolve(K_ff, F_f)
+
         if not np.all(np.isfinite(u_free)):
-            raise ValueError("spsolve returned NaN/inf")
+            return None
+
+        F_norm = np.linalg.norm(F_f)
+        if F_norm > 1e-12:
+            residual = np.linalg.norm(K_ff @ u_free - F_f) / F_norm
+            if residual > residual_tol:
+                return None
+
         u = np.zeros(n)
         u[free] = u_free
         return u
 
     except Exception:
-        try:
-            K_reg = K_ff + scipy.sparse.eye(len(free), format="csr") * eps
-            u_free = scipy.sparse.linalg.spsolve(K_reg, F_f)
-            if not np.all(np.isfinite(u_free)):
-                return None
-            u = np.zeros(n)
-            u[free] = u_free
-            return u
-        except Exception:
-            return None
+        return None
 
 
 def solve_structure(structure: Structure) -> npt.NDArray[np.float64] | None:

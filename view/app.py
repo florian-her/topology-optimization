@@ -44,7 +44,8 @@ def _apply_default_bcs(structure: Structure) -> None:
     structure.nodes[structure._node_id(mid_x, 0)].force_y = -0.5
 
 
-def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> None:
+def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
+                  stress_ratio_limit: float | None = None) -> None:
     col_plot, col_ctrl = st.columns([3, 1])
 
     with col_plot:
@@ -198,6 +199,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                             s_fresh,
                             mass_fraction=mass_fraction,
                             on_progress=_on_progress,
+                            stress_ratio_limit=stress_ratio_limit,
                         )
                         bar.progress(1.0, text="Optimierung abgeschlossen")
                         joke_area.empty()
@@ -207,9 +209,12 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                         st.session_state.stresses = (
                             TopologyOptimizer.compute_spring_stresses(s_fresh, u) if u is not None else None
                         )
-                        st.session_state.status_msg = (
-                            f"{len(history)} Schritte · {s_fresh.active_node_count()} Knoten aktiv"
-                        )
+                        n_final = s_fresh.active_node_count()
+                        target_n = max(2, int(len(s_fresh.nodes) * mass_fraction))
+                        msg = f"{len(history)} Schritte · {n_final} Knoten aktiv"
+                        if n_final > target_n and stress_ratio_limit is not None:
+                            msg += f" (Spannungsgrenze {stress_ratio_limit}× erreicht)"
+                        st.session_state.status_msg = msg
                     st.rerun()
             except Exception as e:
                 st.error(f"Optimierer-Fehler: {e}")
@@ -536,6 +541,13 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
     mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
+    stress_limit_on = st.sidebar.checkbox("Spannungsbegrenzung", value=False)
+    stress_ratio_limit: float | None = None
+    if stress_limit_on:
+        stress_ratio_limit = st.sidebar.slider(
+            "Max. Spannungsfaktor (σ_max / σ_ref)",
+            min_value=1.5, max_value=10.0, value=3.0, step=0.5,
+        )
 
     # --- Tabs ---
     tab_struct, tab_io, tab_gif, tab_mat = st.tabs(
@@ -550,7 +562,7 @@ def main():
         if not s:
             st.info("Struktur initialisieren (Sidebar links).")
         else:
-            _tab_struktur(s, scale_factor, mass_fraction)
+            _tab_struktur(s, scale_factor, mass_fraction, stress_ratio_limit)
 
     with tab_io:
         s = st.session_state.structure
