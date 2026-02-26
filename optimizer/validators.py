@@ -1,3 +1,5 @@
+import numpy as np
+import numpy.typing as npt
 import networkx as nx
 
 from model.structure import Structure
@@ -73,8 +75,72 @@ class StructureValidator:
         return True
 
     @staticmethod
+    def neighbors_stable_after_removal(structure: Structure, node_id: int) -> bool:
+        """Prüft ob nach Entfernen eines Knotens alle Nachbarn mechanisch stabil bleiben.
+
+        Ein Knoten ist stabil wenn er mindestens 2 nicht-parallele Federn hat,
+        sodass er in 2D voll abgestützt ist (kein Mechanismus).
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur.
+        node_id : int
+            ID des Knotens der entfernt werden soll.
+
+        Returns
+        -------
+        bool
+            True wenn alle Nachbarn nach Entfernung stabil bleiben.
+        """
+        affected_spring_ids: set[int] = set()
+        neighbors: set[int] = set()
+
+        for sp in structure.springs:
+            if not sp.active:
+                continue
+            if sp.node_a.id == node_id:
+                affected_spring_ids.add(sp.id)
+                neighbors.add(sp.node_b.id)
+            elif sp.node_b.id == node_id:
+                affected_spring_ids.add(sp.id)
+                neighbors.add(sp.node_a.id)
+
+        for nid in neighbors:
+            node = structure.nodes[nid]
+            if not node.active:
+                continue
+            if node.fix_x and node.fix_y:
+                continue
+
+            directions: list[npt.NDArray[np.float64]] = []
+            for sp in structure.springs:
+                if not sp.active or sp.id in affected_spring_ids:
+                    continue
+                if sp.node_a.id == nid or sp.node_b.id == nid:
+                    directions.append(sp.get_direction_vector())
+
+            if len(directions) < 2:
+                return False
+
+            ref = directions[0]
+            all_parallel = all(
+                abs(ref[0] * d[1] - ref[1] * d[0]) < 1e-6
+                for d in directions[1:]
+            )
+            if all_parallel:
+                return False
+
+        return True
+
+    @staticmethod
     def can_remove_node(structure: Structure, node_id: int) -> bool:
         """Prüft ob ein Knoten entfernt werden kann ohne die Struktur zu zerstören.
+
+        Prüft drei Bedingungen:
+        1. Graph bleibt zusammenhängend
+        2. Lastpfade bleiben erhalten
+        3. Keine Nachbarknoten werden zu Mechanismen (nur parallele Federn)
 
         Parameters
         ----------
@@ -86,10 +152,13 @@ class StructureValidator:
         Returns
         -------
         bool
-            True wenn Zusammenhang und Lastpfade erhalten bleiben.
+            True wenn Zusammenhang, Lastpfade und Stabilität erhalten bleiben.
         """
         node = structure.nodes[node_id]
         assert node.active, f"Knoten {node_id} ist bereits inaktiv."
+
+        if not StructureValidator.neighbors_stable_after_removal(structure, node_id):
+            return False
 
         node.active = False
         affected_springs = []
