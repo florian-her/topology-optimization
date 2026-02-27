@@ -405,13 +405,17 @@ def _tab_speichern(s: Structure) -> None:
             energies=st.session_state.stresses,
             scale_factor=1.0,
         )
-        st.download_button(
-            "Bild herunterladen (PNG)",
-            IOHandler.to_png_bytes(fig_export),
-            file_name=f"struktur_{s.width}x{s.height}_{s.material.name}.png",
-            mime="image/png",
-            use_container_width=True,
-        )
+        try:
+            png_bytes = IOHandler.to_png_bytes(fig_export)
+            st.download_button(
+                "Bild herunterladen (PNG)",
+                png_bytes,
+                file_name=f"struktur_{s.width}x{s.height}_{s.material.name}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
+        except Exception:
+            st.info("PNG-Export nicht verfügbar (kaleido nicht installiert).")
         st.markdown("---")
         st.caption(
             f"Material: {s.material.name}  |  "
