@@ -454,6 +454,7 @@ class TopologyOptimizer:
                 continue
 
             consecutive_failures = 0
+            TopologyOptimizer._cleanup_dangling(structure)
             n_active = structure.active_node_count()
             removed_so_far = total_nodes - n_active
             progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0

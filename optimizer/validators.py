@@ -110,7 +110,9 @@ class StructureValidator:
             node = structure.nodes[nid]
             if not node.active:
                 continue
-            if node.fix_x and node.fix_y:
+            if node.fix_x or node.fix_y:
+                continue
+            if node.force_x != 0 or node.force_y != 0:
                 continue
 
             directions: list[npt.NDArray[np.float64]] = []
@@ -120,7 +122,7 @@ class StructureValidator:
                 if sp.node_a.id == nid or sp.node_b.id == nid:
                     directions.append(sp.get_direction_vector())
 
-            if len(directions) < 2:
+            if len(directions) < 3:
                 return False
 
             ref = directions[0]
