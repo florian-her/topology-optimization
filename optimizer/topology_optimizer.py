@@ -137,10 +137,10 @@ class TopologyOptimizer:
         Returns
         -------
         int | None
-            ID des entfernten Knotens, oder None falls keiner entfernbar.
+            Anzahl entfernter Knoten, oder None falls keiner entfernbar.
         """
         removed = TopologyOptimizer.optimization_batch(structure, u, batch_size=1)
-        return None if removed == 0 else -1
+        return None if removed == 0 else removed
 
     @staticmethod
     def _take_snapshot(structure: Structure) -> dict[str, list[bool]]:
@@ -255,7 +255,7 @@ class TopologyOptimizer:
                 (sp.node_a.id, sp.node_b.id)
                 for sp in structure.springs if sp.active
             )
-            "Schutz vor globalem Strukturversagen" 
+            # Schutz vor globalem Strukturversagen
             protected = set(nx.articulation_points(G))
 
         sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
@@ -285,7 +285,7 @@ class TopologyOptimizer:
             if not can_remove:
                 continue
 
-            "Spiegelknoten für Symmetrie bestimmen"
+            # Spiegelknoten für Symmetrie bestimmen
             mirror_id: int | None = None
             if use_symmetry:
                 x = node_id % structure.width
@@ -433,7 +433,7 @@ class TopologyOptimizer:
                 if fast_mode:
                     halved = TopologyOptimizer._halving_fallback(
                         structure, snapshot_u,
-                        n_active - target_nodes, fast_mode=True,
+                        structure.active_node_count() - target_nodes, fast_mode=True,
                     )
                     snapshot = None
                     if halved == 0:

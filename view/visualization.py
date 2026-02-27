@@ -111,11 +111,11 @@ def plot_structure(
             x=[None], y=[None], mode="markers",
             marker=dict(
                 colorscale=_COLORSCALE,
-                cmin=e_min, cmax=e_max,
-                color=[e_min],
+                cmin=0, cmax=100,
+                color=[0],
                 showscale=True,
                 colorbar=dict(
-                    title=dict(text="Dehnung [%]", font=dict(color="black")),
+                    title=dict(text="Rel. Belastung [%]", font=dict(color="black")),
                     tickfont=dict(color="black"),
                     thickness=12, len=0.75,
                 ),

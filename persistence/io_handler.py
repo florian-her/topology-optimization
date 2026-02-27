@@ -65,7 +65,7 @@ class IOHandler:
 
         Parameters
         ----------
-        structure : Structure
+        filepath : str
             Pfad zur JSON-Datei.
 
         Returns

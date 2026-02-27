@@ -38,9 +38,9 @@ classDiagram
         +float E
         +float yield_strength
         +float density
-        +defaults()$ list[Material]
+        +defaults() list$
         +to_dict() dict
-        +from_dict(d)$ Material
+        +from_dict(d) Material$
     }
 
     class Node {
@@ -83,40 +83,39 @@ classDiagram
 
     class FEMSolver {
         <<module>>
-        +assemble_global_K(structure) csr_matrix
+        +assemble_global_K(structure) ndarray
         +assemble_force_vector(structure) ndarray
         +get_fixed_dofs(structure) list
-        +solve(K, F, fixed_dofs) ndarray
         +solve_structure(structure) ndarray
     }
 
     class TopologyOptimizer {
         <<service>>
-        +compute_spring_energies(structure, u)$ dict
-        +compute_spring_stresses(structure, u)$ dict
-        +compute_node_energies(structure, u)$ dict
-        +optimization_step(structure, u)$ int
-        +optimization_batch(structure, u)$ int
-        +run(structure, mass_fraction)$ list
-        +run_fast(structure, mass_fraction)$ list
+        +compute_spring_energies(structure, u) dict$
+        +compute_spring_stresses(structure, u) dict$
+        +compute_node_energies(structure, u) dict$
+        +optimization_step(structure, u) int$
+        +optimization_batch(structure, u) int$
+        +run(structure, mass_fraction) list$
+        +run_fast(structure, mass_fraction) list$
     }
 
     class StructureValidator {
         <<service>>
-        +is_connected(structure)$ bool
-        +has_load_paths(structure)$ bool
-        +neighbors_stable_after_removal(structure, node_id)$ bool
-        +can_remove_node(structure, node_id)$ bool
+        +is_connected(structure) bool$
+        +has_load_paths(structure) bool$
+        +neighbors_stable_after_removal(structure, node_id) bool$
+        +can_remove_node(structure, node_id) bool$
     }
 
     class IOHandler {
         <<service>>
         +save(structure, filepath)$
-        +load(filepath)$ Structure
-        +to_json_bytes(structure)$ bytes
-        +load_from_bytes(data)$ Structure
-        +to_png_bytes(fig)$ bytes
-        +to_gif_bytes(frames, fps)$ bytes
+        +load(filepath) Structure$
+        +to_json_bytes(structure) bytes$
+        +load_from_bytes(data) Structure$
+        +to_png_bytes(fig) bytes$
+        +to_gif_bytes(frames, fps) bytes$
     }
 
     class Visualization {
@@ -127,7 +126,7 @@ classDiagram
     class App {
         <<streamlit>>
         +main()
-        +_tab_struktur(s, mass_fraction, ...)
+        +_tab_struktur(s, mass_fraction)
         +_tab_speichern(s)
         +_tab_gif(s)
         +_tab_materialien()

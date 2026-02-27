@@ -155,7 +155,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                         st.session_state.u = u
                         st.session_state.stresses = TopologyOptimizer.compute_spring_stresses(s, u)
                         max_s = max(st.session_state.stresses.values()) if st.session_state.stresses else 0.0
-                        st.session_state.status_msg = f"Max. Dehnung: {max_s:.4f} %"
+                        st.session_state.status_msg = f"Max. Stabdehnung: {max_s:.4f}"
                         st.rerun()
             except Exception as e:
                 st.error(f"FEM-Fehler: {e}")
@@ -261,7 +261,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                     f"<b>Massenreduktion:</b> {reduction:.1f} %<br>"
                     f"<b>Max. Verschiebung:</b> {max_disp:.4f}<br>"
                     f"<b>Compliance (u·u):</b> {compliance:.4f}<br>"
-                    f"<b>Max. Dehnung:</b> {max_stress:.4f} %"
+                    f"<b>Max. Stabdehnung:</b> {max_stress:.4f}"
                     f"</small>",
                     unsafe_allow_html=True,
                 )
