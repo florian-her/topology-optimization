@@ -203,6 +203,7 @@ class TopologyOptimizer:
         validate_fem: bool = False,
         fast_mode: bool = False,
         max_fem_attempts: int = 0,
+        use_symmetry: bool = False,
     ) -> int:
         """Entfernt bis zu batch_size Knoten auf Basis einer FEM-Lösung.
 
@@ -225,6 +226,9 @@ class TopologyOptimizer:
             Wenn True, Artikulationspunkte statt voller Zusammenhangsprüfung.
         max_fem_attempts : int
             Max. FEM-Validierungen bei validate_fem (0 = unbegrenzt).
+        use_symmetry : bool
+            Wenn True, wird beim Entfernen eines Knotens auch der
+            linkssymmetrische Spiegelknoten entfernt (falls möglich).
 
         Returns
         -------
@@ -255,10 +259,13 @@ class TopologyOptimizer:
         sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
         removed = 0
         fem_attempts = 0
+        processed: set[int] = set()
 
         for node_id, _ in sorted_nodes:
             if removed >= batch_size:
                 break
+            if node_id in processed:
+                continue
 
             if fast_mode:
                 if node_id in protected:
@@ -276,17 +283,49 @@ class TopologyOptimizer:
             if not can_remove:
                 continue
 
+            # Spiegelknoten für Symmetrie bestimmen
+            mirror_id: int | None = None
+            if use_symmetry:
+                x = node_id % structure.width
+                y = node_id // structure.width
+                m_id = y * structure.width + (structure.width - 1 - x)
+                if m_id != node_id and m_id not in processed and structure.nodes[m_id].active:
+                    mn = structure.nodes[m_id]
+                    if not mn.fix_x and not mn.fix_y and mn.force_x == 0 and mn.force_y == 0:
+                        mirror_id = m_id
+
             structure.remove_node(node_id)
+            processed.add(node_id)
+
+            if mirror_id is not None:
+                m_deg = degree.get(mirror_id, 0)
+                if fast_mode:
+                    m_can = mirror_id not in protected and StructureValidator.neighbors_stable_after_removal(structure, mirror_id)
+                elif m_deg <= 1:
+                    m_can = StructureValidator.neighbors_stable_after_removal(structure, mirror_id)
+                else:
+                    m_can = StructureValidator.can_remove_node(structure, mirror_id)
+                if m_can:
+                    structure.remove_node(mirror_id)
+                    processed.add(mirror_id)
+                else:
+                    mirror_id = None
 
             if validate_fem:
                 fem_attempts += 1
                 if solve_structure(structure) is None:
                     TopologyOptimizer._restore_node(structure, node_id)
+                    processed.discard(node_id)
+                    if mirror_id is not None:
+                        TopologyOptimizer._restore_node(structure, mirror_id)
+                        processed.discard(mirror_id)
                     if 0 < max_fem_attempts <= fem_attempts:
                         break
                     continue
 
             removed += 1
+            if mirror_id is not None:
+                removed += 1
 
         return removed
 
@@ -329,6 +368,7 @@ class TopologyOptimizer:
         on_progress: Callable[[float, int, int], None] | None = None,
         stress_ratio_limit: float | None = None,
         fast_mode: bool = False,
+        use_symmetry: bool = False,
     ) -> list[float]:
         """Führt die Optimierung durch bis der Massenanteil erreicht ist.
 
@@ -393,7 +433,7 @@ class TopologyOptimizer:
                         break
                     n_active = structure.active_node_count()
                     removed_so_far = total_nodes - n_active
-                    progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+                    progress = min(removed_so_far / nodes_to_remove, 1.0) if nodes_to_remove > 0 else 1.0
                     if on_progress:
                         max_reported_progress = max(max_reported_progress, progress)
                         min_reported_active = min(min_reported_active, n_active)
@@ -401,13 +441,14 @@ class TopologyOptimizer:
                     continue
                 removed = TopologyOptimizer.optimization_batch(
                     structure, snapshot_u, batch_size=1, validate_fem=True,
+                    use_symmetry=use_symmetry,
                 )
                 snapshot = None
                 if removed == 0:
                     break
                 n_active = structure.active_node_count()
                 removed_so_far = total_nodes - n_active
-                progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+                progress = min(removed_so_far / nodes_to_remove, 1.0) if nodes_to_remove > 0 else 1.0
                 if on_progress:
                     max_reported_progress = max(max_reported_progress, progress)
                     min_reported_active = min(min_reported_active, n_active)
@@ -426,7 +467,7 @@ class TopologyOptimizer:
 
             n_active = structure.active_node_count()
             removed_so_far = total_nodes - n_active
-            progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+            progress = min(removed_so_far / nodes_to_remove, 1.0) if nodes_to_remove > 0 else 1.0
 
             if fast_mode:
                 if progress < 0.50:
@@ -445,6 +486,7 @@ class TopologyOptimizer:
 
             removed = TopologyOptimizer.optimization_batch(
                 structure, u, batch_size, fast_mode=fast_mode,
+                use_symmetry=use_symmetry,
             )
             if removed == 0:
                 consecutive_failures += 1
@@ -456,7 +498,7 @@ class TopologyOptimizer:
             TopologyOptimizer._cleanup_dangling(structure)
             n_active = structure.active_node_count()
             removed_so_far = total_nodes - n_active
-            progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+            progress = min(removed_so_far / nodes_to_remove, 1.0) if nodes_to_remove > 0 else 1.0
             if on_progress:
                 max_reported_progress = max(max_reported_progress, progress)
                 min_reported_active = min(min_reported_active, n_active)
@@ -552,6 +594,7 @@ class TopologyOptimizer:
         mass_fraction: float,
         on_progress: Callable[[float, int, int], None] | None = None,
         stress_ratio_limit: float | None = None,
+        use_symmetry: bool = False,
     ) -> list[float]:
         """Schnelle Optimierung mit größeren Batches und leichterer Validierung.
 
@@ -576,7 +619,7 @@ class TopologyOptimizer:
         """
         return TopologyOptimizer.run(
             structure, mass_fraction, on_progress, stress_ratio_limit,
-            fast_mode=True,
+            fast_mode=True, use_symmetry=use_symmetry,
         )
 
 

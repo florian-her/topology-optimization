@@ -46,7 +46,8 @@ def _apply_default_bcs(structure: Structure) -> None:
 
 def _tab_struktur(s: Structure, mass_fraction: float,
                   stress_ratio_limit: float | None = None,
-                  opt_mode: str = "Genau") -> None:
+                  opt_mode: str = "Genau",
+                  use_symmetry: bool = False) -> None:
     col_plot, col_ctrl = st.columns([3, 1])
 
     with col_plot:
@@ -203,6 +204,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                             mass_fraction=mass_fraction,
                             on_progress=_on_progress,
                             stress_ratio_limit=stress_ratio_limit,
+                            use_symmetry=use_symmetry,
                         )
                         bar.progress(1.0, text="Optimierung abgeschlossen")
                         joke_area.empty()
@@ -550,6 +552,8 @@ def main():
         horizontal=True,
         help="Genau: kleine Schritte, präzises Ergebnis. Schnell: große Schritte, 4-8× schneller, stoppt ggf. vor dem Ziel.",
     )
+    use_symmetry = st.sidebar.checkbox("Symmetrie erzwingen", value=False,
+        help="Entfernt Knoten immer paarweise gespiegelt (links↔rechts). Empfohlen für symmetrische Lasten.")
     stress_limit_on = st.sidebar.checkbox("Spannungsbegrenzung", value=False)
     stress_ratio_limit: float | None = None
     if stress_limit_on:
@@ -571,7 +575,7 @@ def main():
         if not s:
             st.info("Struktur initialisieren (Sidebar links).")
         else:
-            _tab_struktur(s, mass_fraction, stress_ratio_limit, opt_mode)
+            _tab_struktur(s, mass_fraction, stress_ratio_limit, opt_mode, use_symmetry)
 
     with tab_io:
         s = st.session_state.structure
