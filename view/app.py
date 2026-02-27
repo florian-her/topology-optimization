@@ -44,7 +44,7 @@ def _apply_default_bcs(structure: Structure) -> None:
     structure.nodes[structure._node_id(mid_x, 0)].force_y = -0.5
 
 
-def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
+def _tab_struktur(s: Structure, mass_fraction: float,
                   stress_ratio_limit: float | None = None,
                   opt_mode: str = "Genau") -> None:
     col_plot, col_ctrl = st.columns([3, 1])
@@ -53,7 +53,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
         fig = plot_structure(
             s,
             energies=st.session_state.stresses,
-            scale_factor=scale_factor,
+            scale_factor=0,
             highlight_node_id=st.session_state.selected_node_id,
         )
         event = st.plotly_chart(
@@ -382,7 +382,7 @@ def _tab_gif(s: Structure) -> None:
         st.image(st.session_state.gif_bytes)
 
 
-def _tab_speichern(s: Structure, scale_factor: float) -> None:
+def _tab_speichern(s: Structure) -> None:
     st.header("Speichern / Laden")
 
     col_save, col_load = st.columns(2)
@@ -400,7 +400,7 @@ def _tab_speichern(s: Structure, scale_factor: float) -> None:
         fig_export = plot_structure(
             s,
             energies=st.session_state.stresses,
-            scale_factor=scale_factor,
+            scale_factor=0,
         )
         st.download_button(
             "Bild herunterladen (PNG)",
@@ -541,12 +541,8 @@ def main():
             st.session_state.energy_history = []
 
     st.sidebar.markdown("---")
-    st.sidebar.header("Darstellung")
-    scale_factor = st.sidebar.slider("Verformungs-Skalierung", 0.0, 2.0, 1.0, 0.05)
-
-    st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
-    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
+    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.4, 1.0, 0.7, 0.05)
     opt_mode = st.sidebar.radio(
         "Berechnungsmethode",
         ["Genau", "Schnell"],
@@ -574,14 +570,14 @@ def main():
         if not s:
             st.info("Struktur initialisieren (Sidebar links).")
         else:
-            _tab_struktur(s, scale_factor, mass_fraction, stress_ratio_limit, opt_mode)
+            _tab_struktur(s, mass_fraction, stress_ratio_limit, opt_mode)
 
     with tab_io:
         s = st.session_state.structure
         if not s:
             st.info("Struktur initialisieren (Sidebar links).")
         else:
-            _tab_speichern(s, scale_factor)
+            _tab_speichern(s)
 
     with tab_gif:
         s = st.session_state.structure
