@@ -228,7 +228,7 @@ Der vollständige Strukturzustand (Gitter, Material, Randbedingungen, Optimierun
 
 Der klassische Messerschmitt-Bölkow-Blohm-Balken dient als Referenztest: 60×10-Gitter, Lager unten links/rechts, Last mittig oben. Das Ergebnis — bogenförmige Druckstreben mit diagonalen Zugstreben — ist in `tests/test_mbb_beam.py` automatisiert verifiziert.
 
-![MBB-Balken Optimierungsergebnis](assets/mbb_result.png)
+![MBB-Balken Optimierungsergebnis](assets/struktur_60x10_Stahl.png)
 
 ---
 
