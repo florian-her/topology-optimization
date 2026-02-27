@@ -201,6 +201,8 @@ class TopologyOptimizer:
         u: npt.NDArray[np.float64],
         batch_size: int,
         validate_fem: bool = False,
+        fast_mode: bool = False,
+        max_fem_attempts: int = 0,
     ) -> int:
         """Entfernt bis zu batch_size Knoten auf Basis einer FEM-Lösung.
 
@@ -219,6 +221,10 @@ class TopologyOptimizer:
         validate_fem : bool
             Wenn True, wird nach jeder Entfernung ein FEM-Solve durchgeführt.
             Schlägt dieser fehl, wird die Entfernung rückgängig gemacht.
+        fast_mode : bool
+            Wenn True, Artikulationspunkte statt voller Zusammenhangsprüfung.
+        max_fem_attempts : int
+            Max. FEM-Validierungen bei validate_fem (0 = unbegrenzt).
 
         Returns
         -------
@@ -235,15 +241,32 @@ class TopologyOptimizer:
                 degree[sp.node_a.id] = degree.get(sp.node_a.id, 0) + 1
                 degree[sp.node_b.id] = degree.get(sp.node_b.id, 0) + 1
 
+        protected: set[int] = set()
+        if fast_mode:
+            import networkx as nx
+            G = nx.Graph()
+            G.add_nodes_from(n.id for n in structure.nodes if n.active)
+            G.add_edges_from(
+                (sp.node_a.id, sp.node_b.id)
+                for sp in structure.springs if sp.active
+            )
+            protected = set(nx.articulation_points(G))
+
         sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
         removed = 0
+        fem_attempts = 0
 
         for node_id, _ in sorted_nodes:
             if removed >= batch_size:
                 break
 
-            can_remove = False
-            if degree.get(node_id, 0) <= 1:
+            if fast_mode:
+                if node_id in protected:
+                    continue
+                can_remove = StructureValidator.neighbors_stable_after_removal(
+                    structure, node_id,
+                )
+            elif degree.get(node_id, 0) <= 1:
                 can_remove = StructureValidator.neighbors_stable_after_removal(
                     structure, node_id,
                 )
@@ -255,9 +278,13 @@ class TopologyOptimizer:
 
             structure.remove_node(node_id)
 
-            if validate_fem and solve_structure(structure) is None:
-                TopologyOptimizer._restore_node(structure, node_id)
-                continue
+            if validate_fem:
+                fem_attempts += 1
+                if solve_structure(structure) is None:
+                    TopologyOptimizer._restore_node(structure, node_id)
+                    if 0 < max_fem_attempts <= fem_attempts:
+                        break
+                    continue
 
             removed += 1
 
@@ -301,6 +328,7 @@ class TopologyOptimizer:
         mass_fraction: float,
         on_progress: Callable[[float, int, int], None] | None = None,
         stress_ratio_limit: float | None = None,
+        fast_mode: bool = False,
     ) -> list[float]:
         """Führt die Optimierung durch bis der Massenanteil erreicht ist.
 
@@ -346,6 +374,7 @@ class TopologyOptimizer:
         snapshot = None
         snapshot_u = None
         max_reported_progress = 0.0
+        min_reported_active = total_nodes
 
         while structure.active_node_count() > target_nodes:
             u = solve_structure(structure)
@@ -354,6 +383,22 @@ class TopologyOptimizer:
                 if snapshot is None:
                     break
                 TopologyOptimizer._restore_snapshot(structure, snapshot)
+                if fast_mode:
+                    halved = TopologyOptimizer._halving_fallback(
+                        structure, snapshot_u,
+                        n_active - target_nodes, fast_mode=True,
+                    )
+                    snapshot = None
+                    if halved == 0:
+                        break
+                    n_active = structure.active_node_count()
+                    removed_so_far = total_nodes - n_active
+                    progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
+                    if on_progress:
+                        max_reported_progress = max(max_reported_progress, progress)
+                        min_reported_active = min(min_reported_active, n_active)
+                        on_progress(max_reported_progress, min_reported_active, target_nodes)
+                    continue
                 removed = TopologyOptimizer.optimization_batch(
                     structure, snapshot_u, batch_size=1, validate_fem=True,
                 )
@@ -365,7 +410,8 @@ class TopologyOptimizer:
                 progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
                 if on_progress:
                     max_reported_progress = max(max_reported_progress, progress)
-                    on_progress(max_reported_progress, n_active, target_nodes)
+                    min_reported_active = min(min_reported_active, n_active)
+                    on_progress(max_reported_progress, min_reported_active, target_nodes)
                 continue
 
             if stress_ref is not None and stress_ratio_limit is not None:
@@ -382,13 +428,24 @@ class TopologyOptimizer:
             removed_so_far = total_nodes - n_active
             progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
 
-            batch_size = TopologyOptimizer._adaptive_batch_size(progress, n_active)
+            if fast_mode:
+                if progress < 0.50:
+                    frac = 0.03
+                elif progress < 0.80:
+                    frac = 0.015
+                else:
+                    frac = 0.005
+                batch_size = min(30, max(1, int(n_active * frac)))
+            else:
+                batch_size = TopologyOptimizer._adaptive_batch_size(progress, n_active)
             batch_size = min(batch_size, n_active - target_nodes)
 
             snapshot = TopologyOptimizer._take_snapshot(structure)
             snapshot_u = u
 
-            removed = TopologyOptimizer.optimization_batch(structure, u, batch_size)
+            removed = TopologyOptimizer.optimization_batch(
+                structure, u, batch_size, fast_mode=fast_mode,
+            )
             if removed == 0:
                 consecutive_failures += 1
                 if consecutive_failures >= 3:
@@ -401,12 +458,125 @@ class TopologyOptimizer:
             progress = removed_so_far / nodes_to_remove if nodes_to_remove > 0 else 1.0
             if on_progress:
                 max_reported_progress = max(max_reported_progress, progress)
-                on_progress(max_reported_progress, n_active, target_nodes)
+                min_reported_active = min(min_reported_active, n_active)
+                on_progress(max_reported_progress, min_reported_active, target_nodes)
 
         if snapshot is not None and solve_structure(structure) is None:
             TopologyOptimizer._restore_snapshot(structure, snapshot)
 
+        TopologyOptimizer._cleanup_dangling(structure)
+
         return energy_history
+
+    @staticmethod
+    def _halving_fallback(
+        structure: Structure,
+        u: npt.NDArray[np.float64],
+        remaining: int,
+        fast_mode: bool = False,
+    ) -> int:
+        """Halbiert die Batch-Größe bis eine Entfernung FEM-stabil ist.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur (wird direkt verändert).
+        u : npt.NDArray[np.float64]
+            Verschiebungsvektor.
+        remaining : int
+            Verbleibende zu entfernende Knoten.
+        fast_mode : bool
+            Ob schnelle Prüfungen verwendet werden sollen.
+
+        Returns
+        -------
+        int
+            Anzahl entfernter Knoten, oder 0 bei Misserfolg.
+        """
+        batch_size = min(20, remaining)
+        snapshot = TopologyOptimizer._take_snapshot(structure)
+
+        for _ in range(6):
+            removed = TopologyOptimizer.optimization_batch(
+                structure, u, batch_size, fast_mode=fast_mode,
+            )
+            if removed > 0 and solve_structure(structure) is not None:
+                return removed
+            TopologyOptimizer._restore_snapshot(structure, snapshot)
+            batch_size = max(1, batch_size // 2)
+
+        return 0
+
+    @staticmethod
+    def _cleanup_dangling(structure: Structure) -> int:
+        """Entfernt iterativ alle Blattknoten (Grad ≤ 1) die keine Lager oder Kräfte tragen.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur (wird direkt verändert).
+
+        Returns
+        -------
+        int
+            Anzahl entfernter Knoten.
+        """
+        total_removed = 0
+        changed = True
+        while changed:
+            changed = False
+            degree: dict[int, int] = {}
+            for sp in structure.springs:
+                if sp.active:
+                    degree[sp.node_a.id] = degree.get(sp.node_a.id, 0) + 1
+                    degree[sp.node_b.id] = degree.get(sp.node_b.id, 0) + 1
+
+            for node in structure.nodes:
+                if not node.active:
+                    continue
+                if node.fix_x or node.fix_y:
+                    continue
+                if node.force_x != 0 or node.force_y != 0:
+                    continue
+                if degree.get(node.id, 0) <= 1:
+                    structure.remove_node(node.id)
+                    total_removed += 1
+                    changed = True
+
+        return total_removed
+
+    @staticmethod
+    def run_fast(
+        structure: Structure,
+        mass_fraction: float,
+        on_progress: Callable[[float, int, int], None] | None = None,
+        stress_ratio_limit: float | None = None,
+    ) -> list[float]:
+        """Schnelle Optimierung mit größeren Batches und leichterer Validierung.
+
+        Verwendet Artikulationspunkt-Check statt voller Zusammenhangsprüfung
+        und größere Batch-Größen für weniger FEM-Solves.
+
+        Parameters
+        ----------
+        structure : Structure
+            Die Struktur (wird direkt verändert).
+        mass_fraction : float
+            Anteil der Knoten die übrig bleiben sollen.
+        on_progress : Callable[[float, int, int], None] | None
+            Optionaler Callback(fortschritt, aktive_knoten, ziel_knoten).
+        stress_ratio_limit : float | None
+            Maximales Verhältnis σ_max / σ_ref. None = keine Begrenzung.
+
+        Returns
+        -------
+        list[float]
+            Gesamtenergie nach jedem FEM-Solve.
+        """
+        return TopologyOptimizer.run(
+            structure, mass_fraction, on_progress, stress_ratio_limit,
+            fast_mode=True,
+        )
 
 
 if __name__ == "__main__":
