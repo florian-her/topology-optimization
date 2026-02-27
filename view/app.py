@@ -553,7 +553,7 @@ def main():
         help="Genau: kleine Schritte, präzises Ergebnis. Schnell: große Schritte, 4-8× schneller, stoppt ggf. vor dem Ziel.",
     )
     use_symmetry = st.sidebar.checkbox("Symmetrie erzwingen", value=False,
-        help="Entfernt Knoten immer paarweise gespiegelt (links↔rechts). Empfohlen für symmetrische Lasten.")
+        help="Entfernt Knoten immer paarweise gespiegelt. Empfohlen für symmetrische Lasten.")
     stress_limit_on = st.sidebar.checkbox("Spannungsbegrenzung", value=False)
     stress_ratio_limit: float | None = None
     if stress_limit_on:
