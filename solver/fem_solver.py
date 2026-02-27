@@ -8,8 +8,9 @@ import scipy.sparse.linalg
 from model.structure import Structure
 
 
+
 def assemble_global_K(structure: Structure) -> scipy.sparse.csr_matrix:
-    """Baut die globale Steifigkeitsmatrix als Sparse-Matrix zusammen.
+    """ Globale Steifigkeitsmatrix als Sparse-Matrix.
 
     Parameters
     ----------
@@ -48,7 +49,7 @@ def assemble_global_K(structure: Structure) -> scipy.sparse.csr_matrix:
 
 
 def assemble_force_vector(structure: Structure) -> npt.NDArray[np.float64]:
-    """Baut den Kraftvektor aus den Knotenkräften zusammen.
+    """ Kraftvektor aus den Knotenkräften erstellen.
 
     Parameters
     ----------
@@ -105,9 +106,8 @@ def solve(
     """Löst K*u = F auf dem reduzierten System (freie DOFs).
 
     Statt Zeilen/Spalten zu nullen wird das System auf die freien
-    Freiheitsgrade reduziert und mit dem Sparse-Solver gelöst.
-    Das ist äquivalent, aber deutlich effizienter für große Matrizen.
-
+    Freiheitsgrade reduziert und mit dem Sparse-Solver gelöst für 
+    mehr effizienz und Stabilität.
     Gibt None zurück wenn die Matrix singulär ist (Mechanismus)
     oder das relative Residuum zu groß (schlecht konditioniert).
 

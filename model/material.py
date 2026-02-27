@@ -19,6 +19,7 @@ class Material:
         assert E > 0, "E-Modul muss positiv sein."
         assert yield_strength > 0, "Streckgrenze muss positiv sein."
         assert density > 0, "Dichte muss positiv sein."
+        
         self.name = name
         self.E = E
         self.yield_strength = yield_strength
@@ -26,7 +27,7 @@ class Material:
 
     @classmethod
     def defaults(cls) -> list[Material]:
-        """Gibt die vordefinierten Standardmaterialien zurück.
+        """Gibt die Standardmaterialien zurück.
 
         Returns
         -------
@@ -40,7 +41,7 @@ class Material:
         ]
 
     def to_dict(self) -> dict:
-        """Wandelt das Material in ein Dictionary um.
+        """Wandelt das Material in ein Dictionary um für JSON-Serialisierung.
 
         Returns
         -------

@@ -41,7 +41,7 @@ def _apply_default_bcs(structure: Structure) -> None:
     structure.nodes[nid].fix_y = 1
 
     mid_x = structure.width // 2
-    structure.nodes[structure._node_id(mid_x, 0)].force_y = -0.5
+    structure.nodes[structure._node_id(mid_x, 0)].force_y = -1.0
 
 
 def _tab_struktur(s: Structure, mass_fraction: float,
@@ -57,6 +57,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
             scale_factor=1.0,
             highlight_node_id=st.session_state.selected_node_id,
         )
+        "Bidirektionales Event-Binding: Überträgt JS-Klickkoordinaten in den Python Session-State"
         event = st.plotly_chart(
             fig, on_select="rerun", selection_mode=("points",),
             use_container_width=True,
@@ -198,6 +199,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                                 joke_state["last_t"] = now
                                 joke_area.info(jokes[joke_state["idx"]])
 
+                        "Aufruf des Optimierers mit Callback"
                         run_fn = TopologyOptimizer.run_fast if opt_mode == "Schnell" else TopologyOptimizer.run
                         history = run_fn(
                             s_fresh,
@@ -309,7 +311,7 @@ def _tab_gif(s: Structure) -> None:
                     for i in range(n_frames)
                 ]
 
-                # Besten Startpunkt aus Cache laden (Checkpoint >= start_frac)
+                "Wiederverwendung vorberechneter Topologie-Zustände zur Beschleunigung des Renderings"
                 above = {k: v for k, v in checkpoints.items() if k >= start_frac - 0.01}
                 if above:
                     best_k = min(above)
@@ -497,6 +499,8 @@ def _tab_materialien() -> None:
 def main():
     st.title("2D Topologie-Optimierung")
 
+    "Initialisierung der Zustandsvariablen (Session State für Streamlit)"
+
     if "structure" not in st.session_state:
         st.session_state.structure = None
     if "u" not in st.session_state:
@@ -562,7 +566,7 @@ def main():
         help="Genau: kleine Schritte, präzises Ergebnis. Schnell: große Schritte, 4-8× schneller, stoppt ggf. vor dem Ziel.",
     )
     use_symmetry = st.sidebar.checkbox("Symmetrie erzwingen", value=False,
-        help="Entfernt Knoten immer paarweise gespiegelt. Empfohlen für symmetrische Lasten.")
+        help="Entfernt Knoten immer paarweise gespiegelt (links↔rechts). Empfohlen für symmetrische Lasten.")
     stress_limit_on = st.sidebar.checkbox("Spannungsbegrenzung", value=False)
     stress_ratio_limit: float | None = None
     if stress_limit_on:

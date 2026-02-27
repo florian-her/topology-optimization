@@ -77,6 +77,7 @@ class TestMBBBeamFEM(unittest.TestCase):
         self.assertEqual(len(self.u), 2 * len(self.s.nodes))
 
     def test_fixed_dofs_zero(self):
+        "Prüfung der kinematischen Zulässigkeit (u=0)"
         for y in range(4):
             nid_left = y * 12
             self.assertAlmostEqual(self.u[2 * nid_left], 0.0, places=10)

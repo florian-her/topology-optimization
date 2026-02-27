@@ -27,6 +27,7 @@ class TestGlobalKAssembly(unittest.TestCase):
         self.assertEqual(K_g.shape, (8, 8))
 
     def test_diagonal_values(self):
+        # Hauptdiagonalelemente spiegeln die direkte Eigensteifigkeit des Freiheitsgrades wider (Superposition)
         # Jeder Eckknoten hat genau 1 horiz + 1 vert + 1 diag-Feder
         # Diagonalbeitrag: 1.0 (horiz/vert) + 1/(2*sqrt(2)) (diag) = 1.3536
         K_g = assemble_global_K(self.s)
@@ -38,6 +39,8 @@ class TestGlobalKAssembly(unittest.TestCase):
             )
 
     def test_symmetry(self):
+        # Verifikation des Satzes von Betti (Maxwellsche Reziprozität): 
+        # Steifigkeitsmatrizen linear-elastischer, konservativer Systeme sind zwingend symmetrisch.
         # Nachbedingung: K_g muss symmetrisch sein
         K_g = assemble_global_K(self.s)
         self.assertTrue(np.allclose(K_g.toarray(), K_g.T.toarray()), "K_g ist nicht symmetrisch")
@@ -48,8 +51,8 @@ class TestGlobalKAssembly(unittest.TestCase):
         # Horizontal: 1 Zeile * 1 pro Zeile * 2 Zeilen = 2
         # Vertikal: 1 Spalte * 1 pro Spalte * 2 Spalten = 2 (wait, width=2, height=2)
         # Für width=2, height=2: horizontal = height*(width-1) = 2*1 = 2
-        #                         vertikal  = width*(height-1) = 2*1 = 2
-        #                         diagonal  = 2*(width-1)*(height-1) = 2*1*1 = 2
+        #                        vertikal  = width*(height-1) = 2*1 = 2
+        #                        diagonal  = 2*(width-1)*(height-1) = 2*1*1 = 2
         # Gesamt = 6
         self.assertEqual(len(self.s.springs), 6)
 
@@ -58,6 +61,7 @@ class TestSolveCantilever2x2(unittest.TestCase):
     """Testet den FEM-Solver mit einem 2x2 Kragarm."""
 
     def setUp(self):
+        # Testfall: Numerische Lösung eines wohlgestellten Randwertproblems (Kragträger/Cantilever)
         self.s = Structure(2, 2)
         # Kragarm: linke Knoten (0=(0,0) und 2=(0,1)) vollständig fixiert
         self.s.nodes[0].fix_x = 1
@@ -68,6 +72,7 @@ class TestSolveCantilever2x2(unittest.TestCase):
         self.s.nodes[1].force_x = 10.0
 
     def test_fixed_dofs_are_zero(self):
+        # Einhaltung der Dirichlet-Randbedingungen (kinematische Zwangsbedingungen, Verschiebung u=0)
         # Vorbedingung: Lager korrekt gesetzt
         fixed = get_fixed_dofs(self.s)
         self.assertIn(0, fixed)  # node 0, x
@@ -83,12 +88,15 @@ class TestSolveCantilever2x2(unittest.TestCase):
                                    msg=f"u[{d}] = {u[d]:.2e} sollte 0 sein")
 
     def test_displacement_in_force_direction(self):
+        # Prüfung auf physikalische Plausibilität (Positive Definitheit der Steifigkeitsmatrix):
+        # Äußere Kraft leistet an der Struktur positive Verformungsarbeit (W = 1/2 * F^T * u > 0)
         # Kraft in x-Richtung an Node 1 → Verschiebung u[2] > 0
         u = solve_structure(self.s)
         self.assertIsNotNone(u)
         self.assertGreater(u[2], 0.0, "u[2] (Node 1, x) sollte positiv sein bei Fx=10")
 
     def test_force_vector(self):
+        # Verifikation der korrekten Assemblierung des Neumann-Randvektors
         # Vorbedingung: Kraft nur an DOF 2 (node 1, x)
         F = assemble_force_vector(self.s)
         self.assertAlmostEqual(F[2], 10.0)

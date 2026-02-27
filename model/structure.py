@@ -5,7 +5,7 @@ from .material import Material
 
 class Structure:
     def __init__(self, width: int, height: int, material: Material | None = None):
-        """Erstellt eine Gitterstruktur mit Knoten und Federn.
+        """Erstellt die basis Gitterstruktur mit Knoten und Federn.
 
         Parameters
         ----------
@@ -26,16 +26,16 @@ class Structure:
         self.generate_grid()
 
     def _node_id(self, x: int, y: int) -> int:
-        """Berechnet die Knoten-ID aus der Gitterposition (x, y)."""
+        """Berechnet die Knoten-ID aus der Gitterposition (x, y) für eindeutige Zuordnung"""
         return y * self.width + x
 
     def generate_grid(self) -> None:
-        """Erzeugt das 2D-Gitter mit allen Knoten und Federn."""
         for y in range(self.height):
             for x in range(self.width):
                 nid = self._node_id(x, y)
                 self.nodes.append(Node(nid, float(x), float(y)))
 
+        # Federn hinzufügen
         spring_id = 0
         for y in range(self.height):
             for x in range(self.width):
@@ -69,6 +69,7 @@ class Structure:
         node = self.nodes[node_id]
         assert node.active, f"Knoten {node_id} ist bereits entfernt."
 
+        # Nur logische Deaktivierung, um FEM-Matrixdimensionen konstant zu halten
         node.active = False
         for spring in self.springs:
             if spring.node_a.id == node_id or spring.node_b.id == node_id:

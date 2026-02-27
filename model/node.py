@@ -18,22 +18,25 @@ class Node:
         self.id = node_id
         self.x = x
         self.y = y
+        
+        # Binäre variable der Topologieoptimierung 
         self.active = True
 
-        # Freiheitsgrade: 0 = frei, 1 = fixiert (Lager)
+        # Lager-Randbedingungen (kinematische Lagerungen)
         self.fix_x = 0
         self.fix_y = 0
 
-        # Externe Kräfte in Newton (Konvention: negativ = nach unten)
+        # Kraft-Randbedingungen (äußere Knotenlastvektoren)
         self.force_x = 0.0
         self.force_y = 0.0
 
-        # FEM-Ergebnisse: Verschiebungen
+        # Primäre Lösungsgrößen des FEM-Gleichungssystems (K·u = F)
         self.u_x = 0.0
         self.u_y = 0.0
 
     @property
     def pos(self) -> npt.NDArray[np.float64]:
+        # Vektorielle Basis für die Berechnung der lokalen Elementrichtungsvektoren
         return np.array([self.x, self.y])
 
     def __str__(self) -> str:

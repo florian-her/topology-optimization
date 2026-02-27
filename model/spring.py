@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.typing as npt
 
+
 class Spring:
     def __init__(self, spring_id, node_a, node_b, k: float | None = None):
         """Erstellt eine Feder zwischen zwei Knoten.
@@ -21,6 +22,7 @@ class Spring:
         self.node_a = node_a
         self.node_b = node_b
         self.k = k
+        
         self.active = True
 
     def get_length(self) -> float:
@@ -58,13 +60,13 @@ class Spring:
         if self.k is not None:
             return self.k
 
-        # Auto-detect from geometry
+        # Auto-detect aus geometrie
         dx = self.node_b.x - self.node_a.x
         dy = self.node_b.y - self.node_a.y
 
         angle_deg = abs(np.degrees(np.arctan2(dy, dx)))
 
-        # Diagonal bei 45° oder 135° (±5° Toleranz)
+        # Geometrische Steifigkeitskorrektur für Diagonalelemente im normalen Grid
         if abs(angle_deg - 45) < 5 or abs(angle_deg - 135) < 5:
             return 1.0 / np.sqrt(2.0)
         else:
@@ -81,14 +83,14 @@ class Spring:
         k = self.get_stiffness()
         e_n = self.get_direction_vector()
 
-        # 2x2 lokale Steifigkeitsmatrix
+        # Lokale 1D-Elementsteifigkeitsmatrix
         K = k * np.array([[1.0, -1.0],
                           [-1.0, 1.0]])
 
-        # Orientierungsmatrix (outer product)
+        # Rotationsmatrix-Äquivalent für die Projektion auf globale Freiheitsgrade
         O = np.outer(e_n, e_n)
 
-        # 4x4 Element-Steifigkeitsmatrix (Kronecker-Produkt)
+        # Transformation ins globale 2D-Koordinatensystem mit Kronecker-Produkt
         Ko = np.kron(K, O)
 
         return Ko
