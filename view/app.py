@@ -89,6 +89,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
                 st.session_state.structure_base.material = sel_mat
             st.session_state.u = None
             st.session_state.stresses = None
+            st.rerun()
 
         st.markdown("---")
 
