@@ -14,7 +14,7 @@ _COLORSCALE = [
 
 
 def _sizes(n: int) -> tuple[int, int, float]:
-    """Gibt (node_size, bc_size, line_width) abhängig von Knotenanzahl zurück."""
+    """Gibt (node_size, bc_size, line_width) abhängig von Knotenanzahl dynamisch zurück."""
     node_size = max(2, round(8 / (1 + n / 60)))
     bc_size   = max(5, round(13 / (1 + n / 60)))
     line_w    = max(1.0, round(4.0 / (1 + n / 80), 1))

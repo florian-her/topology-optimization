@@ -50,7 +50,7 @@ class TopologyOptimizer:
         structure: Structure,
         u: npt.NDArray[np.float64],
     ) -> dict[int, float]:
-        """Berechnet die Normalspannung jeder aktiven Feder in MPa.
+        """Berechnet die Normalspannung jeder aktiven Feder.
 
         Parameters
         ----------
@@ -145,6 +145,7 @@ class TopologyOptimizer:
     @staticmethod
     def _take_snapshot(structure: Structure) -> dict[str, list[bool]]:
         """Speichert den aktiven Zustand aller Knoten und Federn.
+        Backup falls kinematische Stabilität verloren geht.
 
         Parameters
         ----------
@@ -207,7 +208,7 @@ class TopologyOptimizer:
     ) -> int:
         """Entfernt bis zu batch_size Knoten auf Basis einer FEM-Lösung.
 
-        Blattknoten (Grad ≤ 1) überspringen den Zusammenhangscheck,
+        Endknoten (Grad ≤ 1) überspringen den Zusammenhangscheck,
         durchlaufen aber die Mechanismus-Prüfung. Alle anderen
         durchlaufen den vollen can_remove_node-Check.
 
@@ -254,6 +255,7 @@ class TopologyOptimizer:
                 (sp.node_a.id, sp.node_b.id)
                 for sp in structure.springs if sp.active
             )
+            "Schutz vor globalem Strukturversagen" 
             protected = set(nx.articulation_points(G))
 
         sorted_nodes = sorted(node_energies.items(), key=lambda x: x[1])
@@ -283,7 +285,7 @@ class TopologyOptimizer:
             if not can_remove:
                 continue
 
-            # Spiegelknoten für Symmetrie bestimmen
+            "Spiegelknoten für Symmetrie bestimmen"
             mirror_id: int | None = None
             if use_symmetry:
                 x = node_id % structure.width
@@ -386,6 +388,11 @@ class TopologyOptimizer:
             Optionaler Callback(fortschritt, aktive_knoten, ziel_knoten).
         stress_ratio_limit : float | None
             Maximales Verhältnis σ_max / σ_ref. None = keine Begrenzung.
+        fast_mode : bool
+            Wenn True, Artikulationspunkte statt voller Zusammenhangsprüfung.
+        use_symmetry : bool
+            Wenn True, wird beim Entfernen eines Knotens auch der
+            linkssymmetrische Spiegelknoten entfernt (falls möglich).
 
         Returns
         -------
@@ -552,7 +559,7 @@ class TopologyOptimizer:
 
     @staticmethod
     def _cleanup_dangling(structure: Structure) -> int:
-        """Entfernt iterativ alle Blattknoten (Grad ≤ 1) die keine Lager oder Kräfte tragen.
+        """Entfernt iterativ alle Endknoten (Grad ≤ 1) die keine Lager oder Kräfte tragen.
 
         Parameters
         ----------
@@ -611,6 +618,9 @@ class TopologyOptimizer:
             Optionaler Callback(fortschritt, aktive_knoten, ziel_knoten).
         stress_ratio_limit : float | None
             Maximales Verhältnis σ_max / σ_ref. None = keine Begrenzung.
+        use_symmetry : bool
+            Wenn True, wird beim Entfernen eines Knotens auch der
+            linkssymmetrische Spiegelknoten entfernt (falls möglich).
 
         Returns
         -------

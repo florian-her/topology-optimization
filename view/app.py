@@ -57,7 +57,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
             scale_factor=1.0,
             highlight_node_id=st.session_state.selected_node_id,
         )
-        "Bidirektionales Event-Binding: Überträgt JS-Klickkoordinaten in den Python Session-State"
+        # Bidirektionales Event-Binding: Überträgt JS-Klickkoordinaten in den Python Session-State
         event = st.plotly_chart(
             fig, on_select="rerun", selection_mode=("points",),
             use_container_width=True,
@@ -199,7 +199,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                                 joke_state["last_t"] = now
                                 joke_area.info(jokes[joke_state["idx"]])
 
-                        "Aufruf des Optimierers mit Callback"
+                        # Aufruf des Optimierers mit Callback
                         run_fn = TopologyOptimizer.run_fast if opt_mode == "Schnell" else TopologyOptimizer.run
                         history = run_fn(
                             s_fresh,
@@ -256,11 +256,15 @@ def _tab_struktur(s: Structure, mass_fraction: float,
                 stresses = st.session_state.stresses
                 max_stress = max(stresses.values()) if stresses else 0.0
 
-                c1, c2 = st.columns(2)
-                c1.metric("Massenreduktion", f"{reduction:.1f} %")
-                c2.metric("Max. Verschiebung", f"{max_disp:.4f}")
-                c1.metric("Compliance (u·u)", f"{compliance:.4f}")
-                c2.metric("Max. Dehnung", f"{max_stress:.4f} %")
+                st.markdown(
+                    f"<small>"
+                    f"<b>Massenreduktion:</b> {reduction:.1f} %<br>"
+                    f"<b>Max. Verschiebung:</b> {max_disp:.4f}<br>"
+                    f"<b>Compliance (u·u):</b> {compliance:.4f}<br>"
+                    f"<b>Max. Dehnung:</b> {max_stress:.4f} %"
+                    f"</small>",
+                    unsafe_allow_html=True,
+                )
 
 
 def _structure_key(s: Structure) -> tuple:
@@ -311,7 +315,7 @@ def _tab_gif(s: Structure) -> None:
                     for i in range(n_frames)
                 ]
 
-                "Wiederverwendung vorberechneter Topologie-Zustände zur Beschleunigung des Renderings"
+                # Wiederverwendung vorberechneter Topologie-Zustände zur Beschleunigung des Renderings
                 above = {k: v for k, v in checkpoints.items() if k >= start_frac - 0.01}
                 if above:
                     best_k = min(above)
@@ -499,8 +503,7 @@ def _tab_materialien() -> None:
 def main():
     st.title("2D Topologie-Optimierung")
 
-    "Initialisierung der Zustandsvariablen (Session State für Streamlit)"
-
+    # Initialisierung der Zustandsvariablen (Session State für Streamlit)
     if "structure" not in st.session_state:
         st.session_state.structure = None
     if "u" not in st.session_state:
