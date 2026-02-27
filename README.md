@@ -13,10 +13,9 @@ Uni-Abschlussprojekt, MCI Innsbruck, Softwaredesign ILV, WS 2025/26.
 ```bash
 python -m venv .venv
 
-# Windows
+
 .venv\Scripts\activate
-# Linux/macOS
-source .venv/bin/activate
+
 
 pip install -r requirements.txt
 streamlit run view/app.py
