@@ -64,7 +64,6 @@ class TopologyOptimizer:
         dict[int, float]
             Feder-ID → |σ| in MPa  (σ = E · Δl / l₀).
         """
-        E_MPa = structure.material.E * 1000.0
         stresses: dict[int, float] = {}
 
         for spring in structure.springs:
@@ -76,7 +75,7 @@ class TopologyOptimizer:
             l0  = spring.get_length()
             du  = np.array([u[2 * j] - u[2 * i], u[2 * j + 1] - u[2 * i + 1]])
             eps = float(np.dot(e_n, du)) / l0
-            stresses[spring.id] = abs(E_MPa * eps)
+            stresses[spring.id] = abs(eps) * 100.0
 
         return stresses
 

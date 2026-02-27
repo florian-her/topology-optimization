@@ -7,9 +7,9 @@ from model.structure import Structure
 
 _N_BINS = 20
 _COLORSCALE = [
-    [0.0, "#FF0000"],
-    [0.5, "#FF3300"],
-    [1.0, "#FF6600"],
+    [0.0,  "#6A0DAD"],
+    [0.5,  "#AA00FF"],
+    [1.0,  "#FFD600"],
 ]
 
 
@@ -115,7 +115,7 @@ def plot_structure(
                 color=[e_min],
                 showscale=True,
                 colorbar=dict(
-                    title=dict(text="Spannung [MPa]", font=dict(color="black")),
+                    title=dict(text="Dehnung [%]", font=dict(color="black")),
                     tickfont=dict(color="black"),
                     thickness=12, len=0.75,
                 ),

@@ -9,6 +9,7 @@ from model.structure import Structure
 from model.material import Material
 from solver.fem_solver import solve_structure
 from optimizer.topology_optimizer import TopologyOptimizer
+from optimizer.validators import StructureValidator
 from view.visualization import plot_structure
 from persistence.io_handler import IOHandler
 from view.jokes import get_shuffled_jokes
@@ -40,11 +41,7 @@ def _apply_default_bcs(structure: Structure) -> None:
     structure.nodes[nid].fix_y = 1
 
     mid_x = structure.width // 2
-    force_nid = structure._node_id(mid_x, bottom)
-    force_node = structure.nodes[force_nid]
-    if force_node.fix_x or force_node.fix_y:
-        force_nid = structure._node_id(mid_x, 0)
-    structure.nodes[force_nid].force_y = -0.5
+    structure.nodes[structure._node_id(mid_x, 0)].force_y = -0.5
 
 
 def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> None:
@@ -115,6 +112,20 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                     st.session_state.stresses = None
                     st.rerun()
 
+            no_bc = not selected_node.fix_x and not selected_node.fix_y
+            no_force = selected_node.force_x == 0 and selected_node.force_y == 0
+            if no_bc and no_force:
+                if st.button("Knoten entfernen", type="secondary", key="remove_node"):
+                    if StructureValidator.can_remove_node(s, selected_node.id):
+                        s.remove_node(selected_node.id)
+                        st.session_state.structure_base.remove_node(selected_node.id)
+                        st.session_state.u = None
+                        st.session_state.stresses = None
+                        st.session_state.selected_node_id = None
+                        st.rerun()
+                    else:
+                        st.warning("Knoten kann nicht entfernt werden (Struktur würde zerfallen).")
+
         st.markdown("---")
 
         # --- FEM + Optimizer ---
@@ -139,7 +150,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                         st.session_state.u = u
                         st.session_state.stresses = TopologyOptimizer.compute_spring_stresses(s, u)
                         max_s = max(st.session_state.stresses.values()) if st.session_state.stresses else 0.0
-                        st.session_state.status_msg = f"Max. Spannung: {max_s:.2f} MPa"
+                        st.session_state.status_msg = f"Max. Dehnung: {max_s:.4f} %"
                         st.rerun()
             except Exception as e:
                 st.error(f"FEM-Fehler: {e}")
@@ -233,7 +244,7 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float) -> No
                 c1.metric("Massenreduktion", f"{reduction:.1f} %")
                 c2.metric("Max. Verschiebung", f"{max_disp:.4f}")
                 c1.metric("Compliance (u·u)", f"{compliance:.4f}")
-                c2.metric("Max. Spannung", f"{max_stress:.2f} MPa")
+                c2.metric("Max. Dehnung", f"{max_stress:.4f} %")
 
 
 def _structure_key(s: Structure) -> tuple:
@@ -297,9 +308,16 @@ def _tab_gif(s: Structure) -> None:
                         TopologyOptimizer.run(s_gif, mass_fraction=start_frac)
                 checkpoints[round(start_frac, 2)] = deepcopy(s_gif)
 
+                import time as _time
+
                 png_frames = []
                 cached_count = 0
                 bar = st.progress(0, f"Frame 0 / {n_frames}")
+                joke_area = st.empty()
+                jokes = get_shuffled_jokes()
+                joke_state = {"idx": 0, "last_t": _time.monotonic()}
+                joke_area.info(jokes[0])
+
                 for idx, target_frac in enumerate(mass_fracs):
                     rounded = round(target_frac, 2)
                     if rounded in png_cache:
@@ -322,7 +340,15 @@ def _tab_gif(s: Structure) -> None:
                         png = fig.to_image(format="png", width=900, height=550, scale=1.5)
                         png_cache[rounded] = png
                         png_frames.append(png)
+
                     bar.progress((idx + 1) / n_frames, f"Frame {idx + 1} / {n_frames}")
+                    now = _time.monotonic()
+                    if now - joke_state["last_t"] >= 10:
+                        joke_state["idx"] = (joke_state["idx"] + 1) % len(jokes)
+                        joke_state["last_t"] = now
+                        joke_area.info(jokes[joke_state["idx"]])
+
+                joke_area.empty()
 
                 st.session_state.gif_checkpoints = checkpoints
                 st.session_state.gif_png_cache = png_cache
