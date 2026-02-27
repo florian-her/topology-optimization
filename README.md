@@ -29,6 +29,131 @@ python -m pytest tests/
 
 ---
 
+## UML-Klassendiagramm
+
+```mermaid
+classDiagram
+    class Material {
+        +str name
+        +float E
+        +float yield_strength
+        +float density
+        +defaults()$ list[Material]
+        +to_dict() dict
+        +from_dict(d)$ Material
+    }
+
+    class Node {
+        +int id
+        +float x
+        +float y
+        +bool active
+        +int fix_x
+        +int fix_y
+        +float force_x
+        +float force_y
+        +float u_x
+        +float u_y
+        +pos() ndarray
+    }
+
+    class Spring {
+        +int id
+        +Node node_a
+        +Node node_b
+        +float k
+        +bool active
+        +get_length() float
+        +get_direction_vector() ndarray
+        +get_stiffness() float
+        +get_stiffness_matrix() ndarray
+    }
+
+    class Structure {
+        +int width
+        +int height
+        +Material material
+        +list nodes
+        +list springs
+        +generate_grid()
+        +remove_node(node_id)
+        +active_node_count() int
+        +active_spring_count() int
+    }
+
+    class FEMSolver {
+        <<module>>
+        +assemble_global_K(structure) csr_matrix
+        +assemble_force_vector(structure) ndarray
+        +get_fixed_dofs(structure) list
+        +solve(K, F, fixed_dofs) ndarray
+        +solve_structure(structure) ndarray
+    }
+
+    class TopologyOptimizer {
+        <<service>>
+        +compute_spring_energies(structure, u)$ dict
+        +compute_spring_stresses(structure, u)$ dict
+        +compute_node_energies(structure, u)$ dict
+        +optimization_step(structure, u)$ int
+        +optimization_batch(structure, u)$ int
+        +run(structure, mass_fraction)$ list
+        +run_fast(structure, mass_fraction)$ list
+    }
+
+    class StructureValidator {
+        <<service>>
+        +is_connected(structure)$ bool
+        +has_load_paths(structure)$ bool
+        +neighbors_stable_after_removal(structure, node_id)$ bool
+        +can_remove_node(structure, node_id)$ bool
+    }
+
+    class IOHandler {
+        <<service>>
+        +save(structure, filepath)$
+        +load(filepath)$ Structure
+        +to_json_bytes(structure)$ bytes
+        +load_from_bytes(data)$ Structure
+        +to_png_bytes(fig)$ bytes
+        +to_gif_bytes(frames, fps)$ bytes
+    }
+
+    class Visualization {
+        <<module>>
+        +plot_structure(structure, energies, scale_factor) Figure
+    }
+
+    class App {
+        <<streamlit>>
+        +main()
+        +_tab_struktur(s, mass_fraction, ...)
+        +_tab_speichern(s)
+        +_tab_gif(s)
+        +_tab_materialien()
+    }
+
+    App ..> Structure : zeigt/bearbeitet
+    App ..> Visualization : rendert
+    App ..> IOHandler : exportiert
+    App ..> TopologyOptimizer : startet
+    App ..> FEMSolver : löst
+    Visualization ..> Structure : liest
+
+    Structure "1" *-- "n" Node : enthält
+    Structure "1" *-- "n" Spring : enthält
+    Structure "1" --> "1" Material : verwendet
+    Spring --> Node : node_a
+    Spring --> Node : node_b
+    FEMSolver ..> Structure : löst
+    TopologyOptimizer ..> Structure : optimiert
+    TopologyOptimizer ..> FEMSolver : verwendet
+    TopologyOptimizer ..> StructureValidator : prüft
+    IOHandler ..> Structure : speichert/lädt
+```
+
+---
+
 ## Projektstruktur
 
 ```
@@ -103,6 +228,8 @@ Der vollständige Strukturzustand (Gitter, Material, Randbedingungen, Optimierun
 
 Der klassische Messerschmitt-Bölkow-Blohm-Balken dient als Referenztest: 60×10-Gitter, Lager unten links/rechts, Last mittig oben. Das Ergebnis — bogenförmige Druckstreben mit diagonalen Zugstreben — ist in `tests/test_mbb_beam.py` automatisiert verifiziert.
 
+![MBB-Balken Optimierungsergebnis](assets/mbb_result.png)
+
 ---
 
 ## Erweiterungen
@@ -162,18 +289,18 @@ Die App ist via **Streamlit Community Cloud** deployed und öffentlich erreichba
 
 ## Einsatz von KI
 
-Dieses Projekt wurde mit Unterstützung von von Claude-Code entwickelt. KI wurde verwendet für:
+Dieses Projekt wurde mit Unterstützung von Claude Code entwickelt. KI kam dabei vor allem bei Aufgaben zum Einsatz, bei denen es nicht primär um das neue Schreiben von Code ging, sondern um Debugging, Troubleshooting und das Verfeinern bestehender Implementierungen:
 
-- Implementierung und Debugging des FEM-Solvers und Validators
-- Entwicklung des adaptiven Batch-Algorithmus und der Symmetrie-Logik
-- Unterstützung beim Streamlit-UI-Aufbau
-- Code-Reviews und Refactoring
+- Fehlersuche und Debugging im FEM-Solver, Validator und Optimierer
+- Troubleshooting bei numerischen Problemen (singuläre Matrizen, instabile Lösungen)
+- Verschönern und Aufräumen von bestehendem Code (Refactoring, Docstrings)
+- Unterstützung beim Streamlit-UI
+- Schreiben der Unit-Tests (`tests/`)
 - Schreiben des Berichtes
 
-Verwendet wurde Claude Code (Antrophic) über die offizielle VS Code Extension — alle generierten Änderungen waren dadurch direkt im Editor sichtbar und konnten vor der Übernahme geprüft und gegengecheckt werden.
+Verwendet wurde Claude Code (Anthropic) über die offizielle VS Code Extension. Dadurch waren alle vorgeschlagenen Änderungen direkt im Editor sichtbar — man konnte genau nachvollziehen, was geändert wurde, und jeden Vorschlag vor der Übernahme prüfen und gegenchecken.
 
-
-Die fachlichen Grundlagen (FEM, ESO, Validierungslogik) kommen aus dem Studium — KI hat geholfen, diese schneller und sauberer in funktionierenden Code umzusetzen.
+Die fachlichen Grundlagen (FEM, ESO, Validierungslogik) kommen aus dem Studium — KI hat geholfen, diese sauberer umzusetzen und Probleme schneller zu lösen.
 
 ---
 
