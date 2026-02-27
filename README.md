@@ -288,14 +288,14 @@ Die App ist via **Streamlit Community Cloud** deployed und öffentlich erreichba
 
 ## Einsatz von KI
 
-Dieses Projekt wurde mit Unterstützung von Claude Code entwickelt. KI kam dabei vor allem bei Aufgaben zum Einsatz, bei denen es nicht primär um das neue Schreiben von Code ging, sondern um Debugging, Troubleshooting und das Verfeinern bestehender Implementierungen:
+Dieses Projekt wurde mit Unterstützung von Künstlicher Intelligenz. KI kam dabei vor allem bei Aufgaben zum Einsatz, bei denen es nicht primär um das neue Schreiben von Code ging, sondern um Debugging, Troubleshooting und das Verfeinern bestehender Implementierungen:
 
 - Fehlersuche und Debugging im FEM-Solver, Validator und Optimierer
 - Troubleshooting bei numerischen Problemen (singuläre Matrizen, instabile Lösungen)
 - Verschönern und Aufräumen von bestehendem Code (Refactoring, Docstrings)
 - Unterstützung beim Streamlit-UI
 - Schreiben der Unit-Tests (`tests/`)
-- Schreiben des Berichtes
+- Schreiben des Berichtes/Read.me
 
 Verwendet wurde Claude Code (Anthropic) über die offizielle VS Code Extension. Dadurch waren alle vorgeschlagenen Änderungen direkt im Editor sichtbar — man konnte genau nachvollziehen, was geändert wurde, und jeden Vorschlag vor der Übernahme prüfen und gegenchecken.
 
