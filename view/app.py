@@ -53,7 +53,7 @@ def _tab_struktur(s: Structure, mass_fraction: float,
         fig = plot_structure(
             s,
             energies=st.session_state.stresses,
-            scale_factor=0,
+            scale_factor=1.0,
             highlight_node_id=st.session_state.selected_node_id,
         )
         event = st.plotly_chart(
@@ -401,7 +401,7 @@ def _tab_speichern(s: Structure) -> None:
         fig_export = plot_structure(
             s,
             energies=st.session_state.stresses,
-            scale_factor=0,
+            scale_factor=1.0,
         )
         st.download_button(
             "Bild herunterladen (PNG)",
