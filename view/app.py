@@ -48,7 +48,8 @@ def _apply_default_bcs(structure: Structure) -> None:
 
 
 def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
-                  stress_ratio_limit: float | None = None) -> None:
+                  stress_ratio_limit: float | None = None,
+                  opt_mode: str = "Genau") -> None:
     col_plot, col_ctrl = st.columns([3, 1])
 
     with col_plot:
@@ -184,7 +185,8 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
                                 joke_state["last_t"] = now
                                 joke_area.info(jokes[joke_state["idx"]])
 
-                        history = TopologyOptimizer.run(
+                        run_fn = TopologyOptimizer.run_fast if opt_mode == "Schnell" else TopologyOptimizer.run
+                        history = run_fn(
                             s_fresh,
                             mass_fraction=mass_fraction,
                             on_progress=_on_progress,
@@ -201,8 +203,12 @@ def _tab_struktur(s: Structure, scale_factor: float, mass_fraction: float,
                         n_final = s_fresh.active_node_count()
                         target_n = max(2, int(len(s_fresh.nodes) * mass_fraction))
                         msg = f"{len(history)} Schritte · {n_final} Knoten aktiv"
-                        if n_final > target_n and stress_ratio_limit is not None:
-                            msg += f" (Spannungsgrenze {stress_ratio_limit}× erreicht)"
+                        if n_final > target_n:
+                            if stress_ratio_limit is not None:
+                                msg += f" (Spannungsgrenze {stress_ratio_limit}× erreicht)"
+                            elif opt_mode == "Schnell":
+                                pct_reached = n_final / len(s_fresh.nodes) * 100
+                                msg += f" (Schnellmodus: {pct_reached:.0f}% erreicht)"
                         st.session_state.status_msg = msg
                     st.rerun()
             except Exception as e:
@@ -515,6 +521,12 @@ def main():
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
     mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.05, 1.0, 0.5, 0.05)
+    opt_mode = st.sidebar.radio(
+        "Berechnungsmethode",
+        ["Genau", "Schnell"],
+        horizontal=True,
+        help="Genau: kleine Schritte, präzises Ergebnis. Schnell: große Schritte, 4-8× schneller, stoppt ggf. vor dem Ziel.",
+    )
     stress_limit_on = st.sidebar.checkbox("Spannungsbegrenzung", value=False)
     stress_ratio_limit: float | None = None
     if stress_limit_on:
@@ -536,7 +548,7 @@ def main():
         if not s:
             st.info("Struktur initialisieren (Sidebar links).")
         else:
-            _tab_struktur(s, scale_factor, mass_fraction, stress_ratio_limit)
+            _tab_struktur(s, scale_factor, mass_fraction, stress_ratio_limit, opt_mode)
 
     with tab_io:
         s = st.session_state.structure
