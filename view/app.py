@@ -527,8 +527,8 @@ def main():
     # --- Sidebar ---
     st.sidebar.header("Gitter")
     col_w, col_h = st.sidebar.columns(2)
-    width = int(col_w.number_input("Breite", min_value=2, max_value=500, value=10, step=1))
-    height = int(col_h.number_input("Höhe", min_value=2, max_value=200, value=6, step=1))
+    width = int(col_w.number_input("Breite", min_value=2, max_value=500, value=60, step=1))
+    height = int(col_h.number_input("Höhe", min_value=2, max_value=200, value=10, step=1))
 
     if st.sidebar.button("Struktur initialisieren"):
         s = Structure(width, height)
@@ -549,7 +549,12 @@ def main():
 
     st.sidebar.markdown("---")
     st.sidebar.header("Optimierer")
-    mass_fraction = st.sidebar.slider("Massenreduktionsfaktor", 0.4, 1.0, 0.7, 0.05)
+    mass_fraction = st.sidebar.slider(
+        "Massenreduktionsfaktor", 0.1, 1.0, 0.7, 0.05,
+        help="Ziel-Massenanteil nach Optimierung. Werte unter 40 % sind nicht empfohlen — die Struktur kann stark verformt werden.",
+    )
+    if round(mass_fraction, 2) < 0.4:
+        st.sidebar.warning("Unter 40 % Masse kann die Struktur stark verformt oder instabil werden.")
     opt_mode = st.sidebar.radio(
         "Berechnungsmethode",
         ["Genau", "Schnell"],
